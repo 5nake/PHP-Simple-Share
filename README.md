@@ -45,8 +45,9 @@ All that is really needed is the `index.php` file. All requests should be routed
 
 Configuration
 -------------
-An example config file has been provided. It has the following options:
+An example config file (`config.dist.ini`) has been provided. It has the following options:
 
+ * `name`: the name you want for your share.
  * `algorithm`: the [hash algorithm][3] used.
  * `database`: the relative path to the sqlite database file.
  * `readfile`: use php instead of letting the webserver handle the file.
@@ -57,7 +58,7 @@ Server Settings
 ---------------
 Here are some tips for the configuration of your webserver. For this script to work all requests should be routed to `index.php`. The documentation for the Silex framework has [some information for other servers][2] which also works for this script.
 
-When serving files the script tries to let the webserver handle the actual file handling via either the  header or the header. Some more information can be found in [this StackExchange question][1].
+When serving files the script tries to let the webserver handle the actual file handling via either the `X-Sendfile` header or the `X-Accel-Redirect` header. Some more information can be found in [this StackExchange question][1].
 If you don't want use this feature, set `readfile` to `true` in the configuration.
 
 ### Apache
