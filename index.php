@@ -441,7 +441,7 @@ class share {
 			exit;
 		} else {
 			/* Open a fileinfo handle and get the mime type */
-			$mime = @finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file);
+			$finfo = finfo_open(FILEINFO_MIME_TYPE);
 		
 			/* Let the webserver handle the file if possible */
 			if($this->config['readfile'])
