@@ -53,7 +53,7 @@ An example config file (`config.dist.ini`) has been provided. It has the followi
  * `algorithm`: the [hash algorithm][3] used.
  * `database`: the relative path to the sqlite database file.
  * `readfile`: use php instead of letting the webserver handle the file.
- * `disposition`: how files should shown. `inline` for display in the browser (if possible), `attachment` if the file
+ * `disposition`: how files should shown. `inline` for display in the browser (if possible), `attachment` if the file should be downloaded.
  * `address`: the address to your share, eg: `http://share.example.com/share/`.
 
 Server Settings
