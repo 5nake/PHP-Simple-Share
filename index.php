@@ -25,17 +25,19 @@ class htmlPage {
 				array(
 					'<!-- title -->',
 					'<!-- head -->',
+					'<!-- header -->',
 					'<!-- body -->',
 				),
 				array(
 					$this->title,
 					$this->head,
+					$this->header,
 					$this->body,
 				),
 				file_get_contents('template.html')
 			);
 		else
-			return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>$this->title</title>$this->head</head><body>$this->body</body></html>";
+			return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>$this->title</title>$this->head</head><body><h1>$this->header</h1>$this->body</body></html>";
 	}
 	
 	/* Add content to body */
@@ -46,6 +48,11 @@ class htmlPage {
 	/* Add content to head */
 	public function addHead($content) {
 		$this->head .= $content;
+	}
+	
+	/* Add content to header */
+	public function addHeader($content) {
+		$this->header .= $content;
 	}
 	
 	/* Set the title of the page */
@@ -248,7 +255,7 @@ class share {
 		
 		/* Check if request still has values, else 404 */
 		if(!$request)
-			require(__DIR__.'/src/404.php');
+			$this->error(404);
 
 		/* Store the hash (escaped) */
 		$this->hash = SQLite3::escapeString($request[0]);
@@ -287,10 +294,14 @@ class share {
 			$files = array();
 			
 			/* Create page */
-			$page = new htmlPage(basename($this->request) . ' - Shared');
+			$page = new htmlPage(htmlspecialchars(basename($this->request) . ' – ' . $this->config['name']));
 			
 			/* Page header */
-			$page->addBody('<h1><i class="directory open"></i>' . basename($this->request) . '</h1>');
+			if(!empty($this->config['name']))
+			    $page->addHeader(htmlspecialchars($this->config['name']));
+			
+			/* Folder name */
+			$page->addBody('<h1><i class="directory open"></i>' . htmlspecialchars(basename($this->request)) . '</h1>');
 			
 			/* Populate filelist */
 			$handle = opendir($this->request);
@@ -337,7 +348,7 @@ class share {
 		if(file_exists(__DIR__.'/config.ini'))
 			$this->config = parse_ini_file(__DIR__.'/config.ini');
 		else
-			$this->config = array('algorithm'=>'sha1', 'database' => 'share.sqlite3', 'readfile' => false, 'disposition'=> 'attachment', 'address'=>'http://[your address here]');
+			$this->config = array('name'=>'PHP Simple Share','algorithm'=>'sha1', 'database' => 'share.sqlite3', 'readfile' => false, 'disposition'=> 'attachment', 'address'=>'http://[your address here]');
 
 	}
 	
@@ -354,7 +365,7 @@ class share {
 		http_response_code($code);
 		
 		if(!$message)
-			switch($message) {
+			switch($code) {
 				case 404:
 					$message = 'Not found';
 					break;
@@ -367,7 +378,15 @@ class share {
 		
 		/* Generate html error page */
 		$page = new htmlPage('Error: ' . $code);
+		
+		/* Page header */
+		if(!empty($this->config['name']))
+		    $page->addHeader(htmlspecialchars($this->config['name']));
+        
+        /* Error */
 		$page->addBody('<h1>Error: ' . $code . '</h1><p>' . $message . '</p>');
+		
+		/* Render and exit */
 		$page->render();
 		exit;
 	}

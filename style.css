@@ -1,0 +1,170 @@
+@import url(//fonts.googleapis.com/css?family=Arimo:400,700);
+
+@font-face {
+  font-family: 'FontAwesome';
+  src: url('//netdna.bootstrapcdn.com/font-awesome/4.0.3/fonts/fontawesome-webfont.eot?v=4.0.3');
+  src: url('//netdna.bootstrapcdn.com/font-awesome/4.0.3/fonts/fontawesome-webfont.eot?#iefix&v=4.0.3')             format('embedded-opentype'),
+       url('//netdna.bootstrapcdn.com/font-awesome/4.0.3/fonts/fontawesome-webfont.woff?v=4.0.3')                   format('woff'),
+       url('//netdna.bootstrapcdn.com/font-awesome/4.0.3/fonts/fontawesome-webfont.ttf?v=4.0.3')                    format('truetype'),
+       url('//netdna.bootstrapcdn.com/font-awesome/4.0.3/fonts/fontawesome-webfont.svg?v=4.0.3#fontawesomeregular') format('svg');
+  font-weight: normal;
+  font-style: normal;
+}
+
+a {
+    position: relative;
+    padding: .2em;
+    margin: -.2em;
+    
+    color: white;
+    text-decoration: none;
+    
+    border-radius: .2em;
+    transition: all .2s;
+}
+
+a:hover {
+    color: black;
+    background-color: rgb(240,240,240);
+    box-shadow: 0em 0em .5em rgba(15,15,15,0.5);
+}
+
+h1 {
+    font-size: 150%;
+}
+
+body {
+    position: absolute;
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    
+    color: white;
+    font-family: 'Arimo', helvetica, sans-serif;
+    font-weight: 400;
+    font-size: 100%;
+    word-break: break-all;
+    
+    background: rgb(165,165,165);
+    box-shadow: inset 0 0 10em rgba(15,15,15,0.2);
+    font-feature-settings: "liga", "onum";
+    -moz-font-feature-settings: "liga", "onum";
+    -webkit-font-feature-settings: "liga", "onum";
+}
+
+header {
+    position: relative;
+    width: 100%;
+    margin: 0;
+    
+    text-align: center;
+    font-size: 200%;
+    font-weight: 700;
+    padding: .5em 0;
+    
+    background-color: rgb(45,45,45);
+    box-shadow: inset 0em -.5em 1em rgba(15,15,15,0.5);
+}
+
+section {
+    position: relative;
+    width: 100%;
+    max-width: 40em;
+    min-width: 10em;
+    margin: 0 auto;
+    
+    color: black;
+    background-color: rgb(210,210,210);
+    box-shadow: 0em .5em 2em rgba(15,15,15,0.5);
+}
+
+footer {
+    position: relative;
+    width: 100%;
+    max-width: 50em;
+    min-width: 12.5em;
+    margin: 0 auto;
+    padding: .2em 0;
+    
+    text-align: center;
+    font-size: 80%;
+    
+    background-color: rgb(45,45,45);
+    box-shadow: inset 0em .5em 1em rgba(15,15,15,0.5);
+}
+
+article {
+    padding: 1em;
+}
+
+article a {
+    color: rgb(15,15,15);
+    line-height: 1.7em;
+    padding: .2em .5em .2em 0;
+}
+
+article a:hover {
+    color: rgb(240,240,240);
+    background-color: rgb(15,15,15);
+}
+
+/* i is for icons */
+i {
+    display: inline-block;
+    width: 2em;
+    
+    text-align: center;
+    font-family: FontAwesome;
+    font-style: normal;
+    font-weight: normal;
+    line-height: 1;
+    
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1 i {
+    width: 1.5em;
+}
+
+.icon {
+    font-family: FontAwesome;
+    font-style: normal;
+    font-weight: normal;
+    line-height: 1;
+    
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Icons */
+
+/* Fallback icon */
+i:before { content: "\f15b"; }
+
+/* Top-level mime-types */
+[class*=application]:before     { content: "\f085"; } /* fa-cogs */
+[class*=audio]:before           { content: "\f025"; } /* fa-headphones */
+[class*=example]:before         { content: "\f094"; } /* fa-lemon-o */
+[class*=image]:before           { content: "\f03e"; } /* fa-picture-o */
+[class*=message]:before         { content: "\f0e8"; } /* fa-envelope */
+[class*=model]:before           { content: "\f009"; } /* fa-th-large */
+[class*=multipart]:before       { content: "\f15b"; } /* fa-file */
+[class*=text]:before            { content: "\f15c"; } /* fa-file-text */
+[class*=video]:before           { content: "\f008"; } /* fa-film */
+
+/* Specific mime-types */
+.up:before                      { content: "\f148"; } /* fa-level-up */
+.directory:before               { content: "\f07b"; } /* fa-folder */
+.directory.open:before          { content: "\f07c"; } /* fa-folder-open */
+
+/* Source code */
+.text\/x-script.phyton:before,
+.text\/html:before              { content: "\f121"; } /* fa-code */
+
+/* Compressed archives */
+.application\/x-7z-compressed:before,
+.application\/zip:before        { content: "\f187"; } /* fa-archive */
+
+/* Document formats */
+.application\/pdf:before        { content: "\f15c"; } /* fa-file-text */
