@@ -268,6 +268,9 @@ class share {
 
 	/* Check the request and serve it */
 	public function handleRequest() {
+	    /* Initialise fileinfo handle to check mime type */
+	    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+	    
 		/* Check request path */
 		$this->request = realpath($this->request);
 		
@@ -282,7 +285,12 @@ class share {
 		/* List files for directories */
 		if(is_dir($this->request)) {
 			$files = array();
+			
+			/* Create page */
 			$page = new htmlPage(basename($this->request) . ' - Shared');
+			
+			/* Page header */
+			$page->addBody('<h1><i class="directory open"></i>' . basename($this->request) . '</h1>');
 			
 			/* Populate filelist */
 			$handle = opendir($this->request);
@@ -290,15 +298,17 @@ class share {
 			closedir($handle);
 			
 			/* Sort files alphabetically */
-			sort($files);
+			natsort($files);
 			
 			/* Show files */
 			foreach($files as $file) {
-				if(substr($file,0,1) != '.')
-					$page->addBody('<i class="' . mime_content_type($this->request . '/' . $file) . '"></i><a href="' . $_SERVER['REQUEST_URI'] . '/' . rawurlencode($file) . '">' . htmlspecialchars($file) . '</a><br/>');
+				if(substr($file,0,1) != '.' && !empty($file))
+					$page->addBody('<a href="' . $_SERVER['REQUEST_URI'] . '/' . rawurlencode($file) . '"><i class="' . finfo_file($finfo, $this->request . '/' . $file) . '"></i>' . htmlspecialchars($file) . '</a><br/>');
 				elseif($file == '..')
-					$page->addBody('<a href="/' . $this->hash . '">...</a><br/>');
+					$page->addBody('<a href="/' . $this->hash . '"><i class="up"></i>..</a><br/>');
 			}
+			/* Close fileinfo handle */
+			finfo_close($finfo);
 			
 			/* Render page and exit */
 			$page->render();
@@ -313,16 +323,19 @@ class share {
 				header('X-Sendfile: ' . $this->request);
 			
 			/* Server other headers */
-			header('Content-type: ' . mime_content_type($this->request));
+			header('Content-Type: ' . finfo_file($finfo, $this->request));
 			header('Content-Disposition: ' . $this->config['disposition'] . '; filename="' . basename($this->request) . '"');
+			
+			/* Close fileinfo handle and exit*/
+			finfo_close($finfo);
 			exit;
 		}
 	}
 	
 	/* Sets config from file, or default */
 	private function setConfig() {
-		if(file_exists('config.ini'))
-			$this->config = parse_ini_file('config.ini');
+		if(file_exists(__DIR__.'/config.ini'))
+			$this->config = parse_ini_file(__DIR__.'/config.ini');
 		else
 			$this->config = array('algorithm'=>'sha1', 'database' => 'share.sqlite3', 'readfile' => false, 'disposition'=> 'attachment', 'address'=>'http://[your address here]');
 
