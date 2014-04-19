@@ -16,8 +16,9 @@ a {
     padding: .2em;
     margin: -.2em;
     
-    color: white;
+    color: rgb(215,215,215);
     text-decoration: none;
+    font-weight: 700;
     
     border-radius: .2em;
     transition: all .2s;
@@ -101,6 +102,7 @@ article a {
     color: rgb(15,15,15);
     line-height: 1.7em;
     padding: .2em .5em .2em 0;
+    font-weight: 400;
 }
 
 article a:hover {
@@ -167,4 +169,6 @@ i:before { content: "\f15b"; }
 .application\/zip:before        { content: "\f187"; } /* fa-archive */
 
 /* Document formats */
+[class*=application\/vnd\.oasis\.opendocument]:before,
+[class*=application\/vnd\.openxmlformats-officedocument]:before,
 .application\/pdf:before        { content: "\f15c"; } /* fa-file-text */
