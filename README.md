@@ -2,6 +2,8 @@ PHP-Simple-Share
 ================
 Simple filesharing via unique links.
 
+![Shared folder][4]
+
 About
 -----
 This script allows you to share files on your webserver via unique urls. Files can be added through a command-line-interface, which creates a salted hash for each file. With this hash the file can be looked up and served.
@@ -118,3 +120,4 @@ If you don't use this feature, set `readfile` to `true` in the configuration.
 [1]: http://stackoverflow.com/questions/3697748/fastest-way-to-serve-a-file-using-php
 [2]: http://silex.sensiolabs.org/doc/web_servers.html
 [3]: http://php.net/manual/en/function.hash-algos.php
+[4]: https://dl.dropboxusercontent.com/u/6849076/Github/php-simple-share-1.png
