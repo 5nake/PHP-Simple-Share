@@ -88,11 +88,76 @@ class share {
 		if(php_sapi_name() == 'cli')
 			$this->cli();
 		
-		/* Set and handle request and check for empty request (which goes to admin-interface) */
+		/* Set request and server a share or the admin interface */
 		if($this->setRequest())
 			$this->admin();
 		else
-			$this->handleRequest();
+			$this->share();
+	}
+	
+	/* Sets config from file, or default */
+	private function setConfig() {
+		/* Check if config file exists or use default config */
+		if(file_exists(__DIR__.'/config.ini')) {
+			/* Load config */
+			$this->config = parse_ini_file(__DIR__.'/config.ini');
+			
+			/* Load roots */
+			$this->roots = array_map('trim', explode(',', $this->config['allowroots']));
+			
+			/* If the password hasn't been hashed, do it */
+			if(substr($this->config['password'],0,1) != '$')
+				$this->hashConfigPassword();
+		} else {
+			/* Default config */
+			$this->config = array(
+				'name'=>'PHP Simple Share (Default Config)',
+				'algorithm'=>'sha1',
+				'database' => 'share.sqlite3',
+				'readfile' => false,
+				'disposition'=> 'attachment',
+				'address'=>'http://[your address here]',
+				'username'=>'phpsimpleshare',
+				'password'=>'$2y$11$4b3Rob9XGsabL.462DpOvuVclaLuuZJkJ5GBo3zZgKfPjnVTBLmSO'
+			);
+			$this->roots = array('/');
+		}
+	}
+	
+	/* Get the path for the requested file, returns true for admin */
+	public function setRequest() {
+		/* Generate requested file from url */
+		$request = explode('/', $_SERVER['REQUEST_URI']);
+		$curfile = explode('/', $_SERVER['SCRIPT_FILENAME']);
+		
+		/* Unset all request items that are in the filename */
+		for($i = 0; $i < sizeof($curfile); $i++) {
+			if(array_key_exists($i, $request) && $request[$i] == $curfile[$i]) {
+				unset($request[$i]);
+			}
+		}
+		
+		/* Re-index array */
+		$request = @array_values($request);
+		
+		/* Check if request still has values, else show login */
+		if(!$request[0])
+			return true;
+
+		/* Store the hash (escaped) */
+		$this->hash = SQLite3::escapeString($request[0]);
+		
+		/* Remove hash from request */ 
+		unset($request[0]);
+		
+		/* Get path from db */
+		$this->hashPath = $this->db->querySingle('SELECT path FROM files WHERE hash="' . $this->hash . '"');
+		
+		/* Assemble full request */
+		$this->request = $this->hashPath;
+		if(isset($request[1]))
+			foreach($request as $req)
+				$this->request .= '/' . rawurldecode($req);
 	}
 	
 	/* Check session for valid login and serve either admin page or login page */
@@ -199,28 +264,6 @@ class share {
 
 		$page->render();
 		exit;
-	}
-	
-	/* Generate a hyperlink for a path */
-	private function linkPath($link, $file, $name = false) {
-		/* Open a fileinfo handle and get the mime type */
-		$mime = @finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file);
-		
-		/* Check if a custom name was set, otherwise use filename */
-		if(!$name)
-			$name = $file;
-		
-		/* For files (not directories) calculate the filesize */
-		$size = "";
-		if($mime != 'directory') {
-			$units = array('B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB');
-			$filesize = filesize($file);
-			$factor = floor((strlen($filesize) - 1) / 3);
-			$size = ' (' . sprintf("%.1f", $filesize / pow(1024, $factor)) . ' ' . @$units[$factor] . ')';
-		}
-		
-		/* Return assembled link */
-		return '<a href="' . $link . '"><i class="' . $mime . '"></i> ' . htmlspecialchars($name) . $size . '</a>';	
 	}
 	
 	/* Command Line Interface */
@@ -342,44 +385,8 @@ class share {
 		);
 	}
 	
-	/* Get the path for the requested file, returns true for admin */
-	public function setRequest() {
-		/* Generate requested file from url */
-		$request = explode('/', $_SERVER['REQUEST_URI']);
-		$curfile = explode('/', $_SERVER['SCRIPT_FILENAME']);
-		
-		/* Unset all request items that are in the filename */
-		for($i = 0; $i < sizeof($curfile); $i++) {
-			if(array_key_exists($i, $request) && $request[$i] == $curfile[$i]) {
-				unset($request[$i]);
-			}
-		}
-		
-		/* Re-index array */
-		$request = @array_values($request);
-		
-		/* Check if request still has values, else show login */
-		if(!$request[0])
-			return true;
-
-		/* Store the hash (escaped) */
-		$this->hash = SQLite3::escapeString($request[0]);
-		
-		/* Remove hash from request */ 
-		unset($request[0]);
-		
-		/* Get path from db */
-		$this->hashPath = $this->db->querySingle('SELECT path FROM files WHERE hash="' . $this->hash . '"');
-		
-		/* Assemble full request */
-		$this->request = $this->hashPath;
-		if(isset($request[1]))
-			foreach($request as $req)
-				$this->request .= '/' . rawurldecode($req);
-	}
-
 	/* Check the request and serve it */
-	public function handleRequest() { 
+	public function share() { 
 		/* Check request path */
 		if(!empty($this->request))
 			$this->request = realpath($this->request);
@@ -447,57 +454,17 @@ class share {
 		}
 	}
 	
-	/* Sets config from file, or default */
-	private function setConfig() {
-		/* Check if config file exists or use default config */
-		if(file_exists(__DIR__.'/config.ini')) {
-			/* Load config */
-			$this->config = parse_ini_file(__DIR__.'/config.ini');
-			
-			/* Load roots */
-			$this->roots = array_map('trim', explode(',', $this->config['allowroots']));
-			
-			/* If the password hasn't been hashed, do it */
-			if(substr($this->config['password'],0,1) != '$')
-				$this->hashConfigPassword();
-		} else {
-			/* Default config */
-			$this->config = array(
-				'name'=>'PHP Simple Share (Default Config)',
-				'algorithm'=>'sha1',
-				'database' => 'share.sqlite3',
-				'readfile' => false,
-				'disposition'=> 'attachment',
-				'address'=>'http://[your address here]',
-				'username'=>'phpsimpleshare',
-				'password'=>'$2y$11$4b3Rob9XGsabL.462DpOvuVclaLuuZJkJ5GBo3zZgKfPjnVTBLmSO'
-			);
-			$this->roots = array('/');
-		}
-	}
-	
-	/* Hash password currently in database and change it in config */
-	private function hashConfigPassword() {
-		/* Read config into an array */
-		$config = file(__DIR__.'/config.ini');
-		
-		/* Change the line containing the password with a hashed version */
-		foreach($config as $line=>$setting)
-			if(substr($setting,0,8) == 'password')
-				$config[$line] = 'password    = ' . password_hash($this->config['password'], PASSWORD_BCRYPT, array('cost' => 12)) . "\r\n";
-		
-		/* Write file back */
-		file_put_contents(__DIR__.'/config.ini', implode($config)) or die('Could not write config');
-		
-		/* Reload config */
-		$this->config = parse_ini_file(__DIR__.'/config.ini');
-	}
-	
 	/* Check if request is in allowed roots */
 	private function checkRequestPath() {
 		foreach($this->roots as $root)
 			if(strpos($this->request, $root) === 0) return true;
 		return false;
+	}
+	
+	/* Populate database */
+	private function createDB() {
+		$this->db = new SQLite3(__DIR__ . '/' . $this->config['database']);
+		$this->db->exec('CREATE TABLE files(hash TEXT PRIMARY KEY, path TEXT)');
 	}
 	
 	/* Serve an html error */
@@ -533,9 +500,42 @@ class share {
 		exit;
 	}
 	
-	/* Populate database */
-	private function createDB() {
-		$this->db = new SQLite3(__DIR__ . '/' . $this->config['database']);
-		$this->db->exec('CREATE TABLE files(hash TEXT PRIMARY KEY, path TEXT)');
+	/* Hash password currently in database and change it in config */
+	private function hashConfigPassword() {
+		/* Read config into an array */
+		$config = file(__DIR__.'/config.ini');
+		
+		/* Change the line containing the password with a hashed version */
+		foreach($config as $line=>$setting)
+			if(substr($setting,0,8) == 'password')
+				$config[$line] = 'password    = ' . password_hash($this->config['password'], PASSWORD_BCRYPT, array('cost' => 12)) . "\r\n";
+		
+		/* Write file back */
+		file_put_contents(__DIR__.'/config.ini', implode($config)) or die('Could not write config');
+		
+		/* Reload config */
+		$this->config = parse_ini_file(__DIR__.'/config.ini');
+	}
+	
+	/* Generate a hyperlink for a path */
+	private function linkPath($link, $file, $name = false) {
+		/* Open a fileinfo handle and get the mime type */
+		$mime = @finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file);
+		
+		/* Check if a custom name was set, otherwise use filename */
+		if(!$name)
+			$name = $file;
+		
+		/* For files (not directories) calculate the filesize */
+		$size = "";
+		if($mime != 'directory') {
+			$units = array('B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB');
+			$filesize = filesize($file);
+			$factor = floor((strlen($filesize) - 1) / 3);
+			$size = ' (' . sprintf("%.1f", $filesize / pow(1024, $factor)) . ' ' . @$units[$factor] . ')';
+		}
+		
+		/* Return assembled link */
+		return '<a href="' . $link . '"><i class="' . $mime . '"></i> ' . htmlspecialchars($name) . $size . '</a>';	
 	}
 }
