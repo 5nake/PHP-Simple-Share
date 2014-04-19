@@ -7,6 +7,7 @@ class htmlPage {
 	private $body;
 	private $title;
 	private $head;
+	private $header;
 
 	/* Set title on creation of object */
 	public function __construct($title = '') {
@@ -89,8 +90,103 @@ class share {
 		
 		/* Get required information and route request */
 		$this->setRoots();
-		$this->setRequest();
-		$this->handleRequest();
+		
+		if($this->setRequest())
+			$this->admin();
+		else
+			$this->handleRequest();
+	}
+	
+	private function admin() {
+		session_start();
+		if(isset($_SESSION['login']) && $_SESSION['login'] === true)
+			$this->adminInterface();
+		else
+			$this->adminLogin();
+	}
+	
+	private function adminInterface() {
+		if(isset($_REQUEST))
+			$this->adminRequest();
+		
+		/* HTML base page */
+		$page = new htmlPage(htmlspecialchars('Admin – ' . $this->config['name']));
+			
+		/* Page header */
+		if(!empty($this->config['name']))
+			$page->addHeader(htmlspecialchars($this->config['name']));
+		
+		/* Allow adding of share */
+		$page->addBody('<h1>Share file/folder</h1><form method="post">Path: <input class="path" type="text" name="path"/><input type="submit" value="share"/></form>');
+		
+		/* Get table of shares */
+		$page->addBody('<h1>List of shared files/folders</h1>' . $this->adminTable());
+		
+		/* Render page and exit */
+		$page->render();
+		exit;
+	}
+	
+	private function adminRequest() {
+		if(isset($_REQUEST['path']))
+			$this->queryForFile(
+				$this->db->prepare('INSERT INTO files (hash,path) VALUES (:hash, :path)'),
+				$_REQUEST['path'],
+				true
+			);
+		if(isset($_REQUEST['hash']))
+			foreach($_REQUEST['hash'] as $hash)
+				$this->queryForFile(
+				$this->db->prepare('DELETE FROM files WHERE hash=:path'),
+				$hash,
+				true,
+				false
+			);
+	}
+	
+	private function adminTable() {
+		$entries = $this->db->query('SELECT * FROM files');
+		
+		/* Initialise fileinfo handle to check mime type */
+	    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+		
+		$html = '<form method="post"><table class="sharelist">';
+		while($file = $entries->fetchArray())
+			$html .= '<tr><td><a href="' . $this->config['address'] . '/' . $file['hash'] . '"><i class="' . @finfo_file($finfo, $file['path']) . '"></i>' .  htmlspecialchars($file['path']) . '</a></td><td><input type="checkbox" name="hash[]" value="' . $file['hash'] . '" /></td><tr>';
+		$html .= '<tr><td></td><td><input type="submit" value="Del"/></td></tr></table></form>';
+		return $html;
+	}
+	
+	private function adminLogin() {
+		/* Check if user tried to login */
+		if(isset($_REQUEST['username']) && isset($_REQUEST['password'])  && $_REQUEST['username'] == $this->config['username'] && password_verify($_REQUEST['password'], $this->config['password'])) {
+			$_SESSION['login'] = true;
+			header('Location: /');
+		}
+		/* HTML base page */
+		$page = new htmlPage(htmlspecialchars('Login – ' . $this->config['name']));
+			
+		/* Page header */
+		if(!empty($this->config['name']))
+			$page->addHeader(htmlspecialchars($this->config['name']));
+			
+		$page->addBody('<form name="login" method="post">
+			<table>
+				<tr>
+					<td>Username:</td>
+					<td><input type="text" name="username"/></td>
+				</tr>
+				<tr>
+					<td>Password:</td>
+					<td><input type="password" name="password"/></td>
+				</tr>
+				<tr>
+				<td></td><td><input type="submit" value="Login"/></td></tr>
+			</table>
+		</form>');
+
+		$page->render();
+		exit;
 	}
 	
 	/* Command Line Interface */
@@ -147,30 +243,6 @@ class share {
 			echo $file['hash'] . ' ' . $file['path'] . "\n";
 	}
 	
-	/* List allowed roots */
-	private function cliListRoots() {
-		$entries = $this->db->query('SELECT * FROM roots');
-		echo "Files and folders in the following roots can be shared:\n\n";
-		while($file = $entries->fetchArray())
-			echo $file['path'] . "\n";
-	}
-	
-	/* Add a path to allowed roots */
-	private function cliAddRoot() {
-		$this->cliQueryForArgs(
-			$this->db->prepare('INSERT INTO roots (path) VALUES (:path)'),
-			"Added :path to allowed roots\n"
-		);
-	}
-	
-	/* Remove a path from allowed roots */
-	private function cliDelRoot() {
-		$this->cliQueryForArgs(
-			$this->db->prepare('DELETE FROM roots WHERE path=:path'),
-			"Removed :path from allowed roots\n"
-		);
-	}
-	
 	/* Add a new shared file/folder */
 	private function cliDel() {
 		$this->cliQueryForArgs(
@@ -179,6 +251,24 @@ class share {
 			true,
 			false
 		);
+	}
+	
+	private function queryForFile($query, $file, $hash = false, $path = true) {
+		/* Resolve path */
+		if($path)
+			$file = realpath($file);
+		
+		/* Bind path */
+		$query->bindValue(':path', SQLite3::escapeString($file), SQLITE3_TEXT);
+		
+		/* Calculate and bind hash */
+		if($hash) {
+			$hash = hash($this->config['algorithm'], $file . microtime());
+			$query->bindValue(':hash', $hash, SQLITE3_TEXT);
+		}
+		
+		/* Execute query */
+		return $query->execute();
 	}
 	
 	/* Execute a query based on arguments */
@@ -193,25 +283,15 @@ class share {
 		
 		/* Loop trough arguments and execute query for each */
 		foreach($argv as $f) {
-			/* Resolve path */
-			if($path)
-				$f = realpath($f);
-			
 			/* Generate message */
 			$m = str_replace(':path', $f, $message);
 			
-			/* Bind path */
-			$query->bindValue(':path', SQLite3::escapeString($f), SQLITE3_TEXT);
-			
-			/* Calculate and bind/replace hash */
+			/* Calculate and replace hash */
 			if($hash) {
 				$hash = hash($this->config['algorithm'], $f . microtime());
-				$query->bindValue(':hash', $hash, SQLITE3_TEXT);
 				$m = str_replace(':hash', $hash, $m);
 			}
-			
-			/* Execute query */
-			if($query->execute())
+			if($this->queryForFile($query, $f, $hash, $path))
 				echo $m;
 		}
 	}
@@ -223,10 +303,7 @@ class share {
 			"  index.php [share|list|addroot|delroot] [path]\n\n".
 			"    list              List shared files\n".
 			"    share [files]     Share file(s)\n".
-			"    del [hash(es)]    Stop sharing file(s) with hash(es)\n".
-			"    listroots         List allowed roots\n".
-			"    addroot [roots]   Add path(s) to allowed roots\n".
-			"    delroot [roots]   Remove path(s) from allowed roots\n"
+			"    del [hash(es)]    Stop sharing file(s) with hash(es)\n"
 		);
 	}
 	
@@ -237,7 +314,7 @@ class share {
 			$this->roots[] = $root[0];
 	}
 	
-	/* Get the path for the requested file */
+	/* Get the path for the requested file, returns true for admin */
 	public function setRequest() {
 		/* Generate requested file from url */
 		$request = explode('/', $_SERVER['REQUEST_URI']);
@@ -253,9 +330,9 @@ class share {
 		/* Re-index array */
 		$request = @array_values($request);
 		
-		/* Check if request still has values, else 404 */
-		if(!$request)
-			$this->error(404);
+		/* Check if request still has values, else show login */
+		if(!$request[0])
+			return true;
 
 		/* Store the hash (escaped) */
 		$this->hash = SQLite3::escapeString($request[0]);
@@ -279,7 +356,8 @@ class share {
 	    $finfo = finfo_open(FILEINFO_MIME_TYPE);
 	    
 		/* Check request path */
-		$this->request = realpath($this->request);
+		if(!empty($this->request))
+			$this->request = realpath($this->request);
 		
 		/* Error at empty request or non-existing file */
 		if(empty($this->request) || !file_exists($this->request))
@@ -345,11 +423,38 @@ class share {
 	
 	/* Sets config from file, or default */
 	private function setConfig() {
-		if(file_exists(__DIR__.'/config.ini'))
+		if(file_exists(__DIR__.'/config.ini')) {
 			$this->config = parse_ini_file(__DIR__.'/config.ini');
-		else
-			$this->config = array('name'=>'PHP Simple Share','algorithm'=>'sha1', 'database' => 'share.sqlite3', 'readfile' => false, 'disposition'=> 'attachment', 'address'=>'http://[your address here]');
-
+			if(substr($this->config['password'],0,1) != '$')
+				$this->hashConfigPassword();
+		} else {
+			$this->config = array(
+				'name'=>'PHP Simple Share (Default Config)',
+				'algorithm'=>'sha1',
+				'database' => 'share.sqlite3',
+				'readfile' => false,
+				'disposition'=> 'attachment',
+				'address'=>'http://[your address here]',
+				'username'=>'phpsimpleshare',
+				'password'=>'$2y$11$4b3Rob9XGsabL.462DpOvuVclaLuuZJkJ5GBo3zZgKfPjnVTBLmSO'
+			);
+		}
+	}
+	
+	private function hashConfigPassword() {
+		/* Read config into an array */
+		$config = file(__DIR__.'/config.ini');
+		
+		/* Change the line containing the password with a hashed version */
+		foreach($config as $line=>$setting)
+			if(substr($setting,0,8) == 'password')
+				$config[$line] = 'password    = ' . password_hash($this->config['password'], PASSWORD_BCRYPT, array('cost' => 12)) . "\r\n";
+		
+		/* Write file back */
+		file_put_contents(__DIR__.'/config.ini', implode($config)) or die('Could not write config');
+		
+		/* Reload config */
+		$this->config = parse_ini_file(__DIR__.'/config.ini');
 	}
 	
 	/* Check if request is in allowed roots */
@@ -394,7 +499,6 @@ class share {
 	/* Populate database */
 	private function createDB() {
 		$this->db = new SQLite3(__DIR__ . '/' . $this->config['database']);
-		$this->db->exec('CREATE TABLE roots(path TEXT)');
 		$this->db->exec('CREATE TABLE files(hash TEXT PRIMARY KEY, path TEXT)');
 	}
 }
