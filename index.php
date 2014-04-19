@@ -500,6 +500,47 @@ class share {
 		exit;
 	}
 	
+	/* Return filesize for any file */
+	private function fileSize($file) {
+		/* Load units */
+		$units = array('B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB');
+		
+		/* Check if file exists */
+		if(file_exists($file)) {
+			$filesize = filesize($file);
+			
+			/* If the filesize is clearly incorrect, recalculate */
+			if(!$filesize) {
+				$pos = 0;
+				$size = 1073741824;
+				fseek($file, 0, SEEK_SET);
+				while ($size > 1)
+				{
+					fseek($file, $size, SEEK_CUR);
+
+					if (fgetc($file) === false)
+					{
+						fseek($file, -$size, SEEK_CUR);
+						$size = (int)($size / 2);
+					}
+					else
+					{
+						fseek($file, -1, SEEK_CUR);
+						$pos += $size;
+					}
+				}
+				while (fgetc($file) !== false)  $pos++;
+				$filesize = $pos;
+			}
+			
+			/* Turn the size into human readable format */
+			$factor = floor((strlen($filesize) - 1) / 3);
+			return sprintf("%.1f", $filesize / pow(1024, $factor)) . ' ' . @$units[$factor];
+		} else {
+			return 'does not exist';
+		}
+	}
+	
 	/* Hash password currently in database and change it in config */
 	private function hashConfigPassword() {
 		/* Read config into an array */
@@ -528,12 +569,8 @@ class share {
 		
 		/* For files (not directories) calculate the filesize */
 		$size = "";
-		if($mime != 'directory') {
-			$units = array('B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB');
-			$filesize = filesize($file);
-			$factor = floor((strlen($filesize) - 1) / 3);
-			$size = ' (' . sprintf("%.1f", $filesize / pow(1024, $factor)) . ' ' . @$units[$factor] . ')';
-		}
+		if($mime != 'directory')
+			$size = ' (' . $this->fileSize($file) . ')';
 		
 		/* Return assembled link */
 		return '<a href="' . $link . '"><i class="' . $mime . '"></i> ' . htmlspecialchars($name) . $size . '</a>';	
