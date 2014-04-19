@@ -516,37 +516,12 @@ class share {
 		if(file_exists($file)) {
 			$filesize = filesize($file);
 			
-			/* If the filesize is clearly incorrect, recalculate */
-			if(!$filesize) {
-				$fp = fopen($file, 'r'); 
-				$pos = 0;
-				$size = 1073741824;
-				fseek($fp, 0, SEEK_SET);
-				while ($size > 1)
-				{
-					fseek($fp, $size, SEEK_CUR);
-
-					if (fgetc($fp) === false)
-					{
-						fseek($fp, -$size, SEEK_CUR);
-						$size = (int)($size / 2);
-					}
-					else
-					{
-						fseek($fp, -1, SEEK_CUR);
-						$pos += $size;
-					}
-				}
-
-				while (fgetc($fp) !== false)  $pos++;
-
-				$filesize = $pos;
-				fclose($fp);
+			/* If the filesize is clearly incorrect, don't show it */
+			if($filesize) {
+				/* Turn the size into human readable format */
+				$factor = floor((strlen($filesize) - 1) / 3);
+				return sprintf("%.1f", $filesize / pow(1024, $factor)) . ' ' . @$units[$factor];
 			}
-			
-			/* Turn the size into human readable format */
-			$factor = floor((strlen($filesize) - 1) / 3);
-			return sprintf("%.1f", $filesize / pow(1024, $factor)) . ' ' . @$units[$factor];
 		} else {
 			return 'does not exist';
 		}
