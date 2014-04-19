@@ -435,14 +435,15 @@ class share {
 				}
 				
 			}
-			/* Close fileinfo handle */
-			finfo_close($finfo);
 			
 			/* Render page and exit */
 			$page->render();
 			exit;
 		} else {
-			/* Let the webserver handle the file */
+			/* Open a fileinfo handle and get the mime type */
+			$mime = @finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file);
+		
+			/* Let the webserver handle the file if possible */
 			if($this->config['readfile'])
 				readfile($this->request);
 			elseif(strstr($_SERVER['SERVER_SOFTWARE'], 'nginx'))
@@ -577,6 +578,9 @@ class share {
 		$size = "";
 		if($mime != 'directory')
 			$size = ' (' . $this->fileSize($file) . ')';
+		
+		/* Close fileinfo handle */
+		finfo_close($finfo);
 		
 		/* Return assembled link */
 		return '<a href="' . $link . '"><i class="' . $mime . '"></i> ' . htmlspecialchars($name) . $size . '</a>';	
