@@ -519,8 +519,28 @@ class share {
 			/* If the filesize is clearly incorrect, recalculate */
 			if(!$filesize) {
 				$fp = fopen($file, 'r'); 
-				fseek($fp, 0, SEEK_END);
-				$filesize = ftell($fp); 
+				$pos = 0;
+				$size = 1073741824;
+				fseek($fp, 0, SEEK_SET);
+				while ($size > 1)
+				{
+					fseek($fp, $size, SEEK_CUR);
+
+					if (fgetc($fp) === false)
+					{
+						fseek($fp, -$size, SEEK_CUR);
+						$size = (int)($size / 2);
+					}
+					else
+					{
+						fseek($fp, -1, SEEK_CUR);
+						$pos += $size;
+					}
+				}
+
+				while (fgetc($fp) !== false)  $pos++;
+
+				$filesize = $pos;
 				fclose($fp);
 			}
 			
