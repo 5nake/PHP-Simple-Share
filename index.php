@@ -568,7 +568,8 @@ class share {
 	/* Generate a hyperlink for a path */
 	private function linkPath($link, $file, $name = false) {
 		/* Open a fileinfo handle and get the mime type */
-		$mime = @finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file);
+		$finfo = finfo_open(FILEINFO_MIME_TYPE);
+		$mime = @finfo_file($finfo, $file);
 		
 		/* Check if a custom name was set, otherwise use filename */
 		if(!$name)
