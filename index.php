@@ -88,15 +88,14 @@ class share {
 		if(php_sapi_name() == 'cli')
 			$this->cli();
 		
-		/* Get required information and route request */
-		$this->setRoots();
-		
+		/* Set and handle request and check for empty request (which goes to admin-interface) */
 		if($this->setRequest())
 			$this->admin();
 		else
 			$this->handleRequest();
 	}
 	
+	/* Check session for valid login and serve either admin page or login page */
 	private function admin() {
 		session_start();
 		if(isset($_SESSION['login']) && $_SESSION['login'] === true)
@@ -105,6 +104,7 @@ class share {
 			$this->adminLogin();
 	}
 	
+	/* Provide the admin interface */
 	private function adminInterface() {
 		if(isset($_REQUEST))
 			$this->adminRequest();
@@ -127,13 +127,17 @@ class share {
 		exit;
 	}
 	
+	/* Handle post/get requests to the admin interface */
 	private function adminRequest() {
+		/* Share new files */
 		if(isset($_REQUEST['path']))
 			$this->queryForFile(
 				$this->db->prepare('INSERT INTO files (hash,path) VALUES (:hash, :path)'),
 				$_REQUEST['path'],
 				true
 			);
+		
+		/* Delete files from share */
 		if(isset($_REQUEST['hash']))
 			foreach($_REQUEST['hash'] as $hash)
 				$this->queryForFile(
@@ -144,19 +148,27 @@ class share {
 			);
 	}
 	
+	/* Generate the table for the admin interface */
 	private function adminTable() {
+		/* Query to get all shared files */
 		$entries = $this->db->query('SELECT * FROM files');
 		
 		/* Initialise fileinfo handle to check mime type */
 	    $finfo = finfo_open(FILEINFO_MIME_TYPE);
 		
+		/* Start of form/table */
 		$html = '<form method="post"><table class="sharelist">';
+		
+		/* Loop trough all shared files and create hyperlinks */
 		while($file = $entries->fetchArray())
-			$html .= '<tr><td><a href="' . $this->config['address'] . '/' . $file['hash'] . '"><i class="' . @finfo_file($finfo, $file['path']) . '"></i>' .  htmlspecialchars($file['path']) . '</a></td><td><input type="checkbox" name="hash[]" value="' . $file['hash'] . '" /></td><tr>';
+			$html .= '<tr><td>' . $this->linkPath($this->config['address'] . '/' . $file['hash'], $file['path']) .'</td><td><input type="checkbox" name="hash[]" value="' . $file['hash'] . '" /></td><tr>';
+			
+		/* Conclude form and return it */
 		$html .= '<tr><td></td><td><input type="submit" value="Del"/></td></tr></table></form>';
 		return $html;
 	}
 	
+	/* Handle logins for the admin interface */
 	private function adminLogin() {
 		/* Check if user tried to login */
 		if(isset($_REQUEST['username']) && isset($_REQUEST['password'])  && $_REQUEST['username'] == $this->config['username'] && password_verify($_REQUEST['password'], $this->config['password'])) {
@@ -187,6 +199,28 @@ class share {
 
 		$page->render();
 		exit;
+	}
+	
+	/* Generate a hyperlink for a path */
+	private function linkPath($link, $file, $name = false) {
+		/* Open a fileinfo handle and get the mime type */
+		$mime = @finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file);
+		
+		/* Check if a custom name was set, otherwise use filename */
+		if(!$name)
+			$name = $file;
+		
+		/* For files (not directories) calculate the filesize */
+		$size = "";
+		if($mime != 'directory') {
+			$units = array('B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB');
+			$filesize = filesize($file);
+			$factor = floor((strlen($filesize) - 1) / 3);
+			$size = ' (' . sprintf("%.1f", $filesize / pow(1024, $factor)) . ' ' . @$units[$factor] . ')';
+		}
+		
+		/* Return assembled link */
+		return '<a href="' . $link . '"><i class="' . $mime . '"></i> ' . htmlspecialchars($name) . $size . '</a>';	
 	}
 	
 	/* Command Line Interface */
@@ -253,6 +287,7 @@ class share {
 		);
 	}
 	
+	/* Execute a query for a file */
 	private function queryForFile($query, $file, $hash = false, $path = true) {
 		/* Resolve path */
 		if($path)
@@ -261,17 +296,18 @@ class share {
 		/* Bind path */
 		$query->bindValue(':path', SQLite3::escapeString($file), SQLITE3_TEXT);
 		
-		/* Calculate and bind hash */
+		/* Calculate and bind/save hash */
 		if($hash) {
 			$hash = hash($this->config['algorithm'], $file . microtime());
 			$query->bindValue(':hash', $hash, SQLITE3_TEXT);
+			$this->hash = $hash;
 		}
 		
 		/* Execute query */
 		return $query->execute();
 	}
 	
-	/* Execute a query based on arguments */
+	/* Execute a query based on command line arguments */
 	private function cliQueryForArgs($query, $message, $hash = false, $path = true) {
 		global $argv;
 		
@@ -286,13 +322,12 @@ class share {
 			/* Generate message */
 			$m = str_replace(':path', $f, $message);
 			
-			/* Calculate and replace hash */
-			if($hash) {
-				$hash = hash($this->config['algorithm'], $f . microtime());
-				$m = str_replace(':hash', $hash, $m);
-			}
+			/* Execute the query and output result */
 			if($this->queryForFile($query, $f, $hash, $path))
-				echo $m;
+				if($hash)
+					echo str_replace(':hash', $this->hash, $m);
+				else
+					echo $m;
 		}
 	}
 	
@@ -305,13 +340,6 @@ class share {
 			"    share [files]     Share file(s)\n".
 			"    del [hash(es)]    Stop sharing file(s) with hash(es)\n"
 		);
-	}
-	
-	/* Get allowed roots from database */
-	public function setRoots() {
-		$roots = $this->db->query('SELECT * from roots');
-		while($root = $roots->fetchArray())
-			$this->roots[] = $root[0];
 	}
 	
 	/* Get the path for the requested file, returns true for admin */
@@ -351,10 +379,7 @@ class share {
 	}
 
 	/* Check the request and serve it */
-	public function handleRequest() {
-	    /* Initialise fileinfo handle to check mime type */
-	    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-	    
+	public function handleRequest() { 
 		/* Check request path */
 		if(!empty($this->request))
 			$this->request = realpath($this->request);
@@ -392,7 +417,8 @@ class share {
 			/* Show files */
 			foreach($files as $file) {
 				if(substr($file,0,1) != '.' && !empty($file))
-					$page->addBody('<a href="' . $_SERVER['REQUEST_URI'] . '/' . rawurlencode($file) . '"><i class="' . finfo_file($finfo, $this->request . '/' . $file) . '"></i>' . htmlspecialchars($file) . '</a><br/>');
+					$page->addBody($this->linkPath($_SERVER['REQUEST_URI'] . '/' . rawurlencode($file), $this->request . '/' . $file, $file) . '<br/>');
+					
 				elseif($file == '..')
 					$page->addBody('<a href="/' . $this->hash . '"><i class="up"></i>..</a><br/>');
 			}
@@ -423,11 +449,19 @@ class share {
 	
 	/* Sets config from file, or default */
 	private function setConfig() {
+		/* Check if config file exists or use default config */
 		if(file_exists(__DIR__.'/config.ini')) {
+			/* Load config */
 			$this->config = parse_ini_file(__DIR__.'/config.ini');
+			
+			/* Load roots */
+			$this->roots = array_map('trim', explode(',', $this->config['allowroots']));
+			
+			/* If the password hasn't been hashed, do it */
 			if(substr($this->config['password'],0,1) != '$')
 				$this->hashConfigPassword();
 		} else {
+			/* Default config */
 			$this->config = array(
 				'name'=>'PHP Simple Share (Default Config)',
 				'algorithm'=>'sha1',
@@ -438,9 +472,11 @@ class share {
 				'username'=>'phpsimpleshare',
 				'password'=>'$2y$11$4b3Rob9XGsabL.462DpOvuVclaLuuZJkJ5GBo3zZgKfPjnVTBLmSO'
 			);
+			$this->roots = array('/');
 		}
 	}
 	
+	/* Hash password currently in database and change it in config */
 	private function hashConfigPassword() {
 		/* Read config into an array */
 		$config = file(__DIR__.'/config.ini');
@@ -469,6 +505,7 @@ class share {
 		/* Set response code */
 		http_response_code($code);
 		
+		/* Table of fallback messages */
 		if(!$message)
 			switch($code) {
 				case 404:
