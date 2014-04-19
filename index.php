@@ -219,7 +219,7 @@ class share {
 		$entries = $this->db->query('SELECT * FROM files');
 		
 		/* Initialise fileinfo handle to check mime type */
-	    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+		$finfo = finfo_open(FILEINFO_MIME_TYPE);
 		
 		/* Start of form/table */
 		$html = '<form method="post"><table class="sharelist">';
@@ -379,9 +379,9 @@ class share {
 		exit(
 			"Usage:\n".
 			"  index.php [share|list|addroot|delroot] [path]\n\n".
-			"    list              List shared files\n".
-			"    share [files]     Share file(s)\n".
-			"    del [hash(es)]    Stop sharing file(s) with hash(es)\n"
+			"	list			  List shared files\n".
+			"	share [files]	 Share file(s)\n".
+			"	del [hash(es)]	Stop sharing file(s) with hash(es)\n"
 		);
 	}
 	
@@ -408,7 +408,7 @@ class share {
 			
 			/* Page header */
 			if(!empty($this->config['name']))
-			    $page->addHeader(htmlspecialchars($this->config['name']));
+				$page->addHeader(htmlspecialchars($this->config['name']));
 			
 			/* Folder name */
 			$page->addBody('<h1><i class="directory open"></i>' . htmlspecialchars(basename($this->request)) . '</h1>');
@@ -423,11 +423,17 @@ class share {
 			
 			/* Show files */
 			foreach($files as $file) {
-				if(substr($file,0,1) != '.' && !empty($file))
-					$page->addBody($this->linkPath($_SERVER['REQUEST_URI'] . '/' . rawurlencode($file), $this->request . '/' . $file, $file) . '<br/>');
-					
-				elseif($file == '..')
-					$page->addBody('<a href="/' . $this->hash . '"><i class="up"></i>..</a><br/>');
+				/* Strip trailing slash from request */
+				$uri = rtrim($_SERVER['REQUEST_URI'], '/');
+				
+				/* If it's a regular file, add a link to body */
+				if(substr($file,0,1) != '.' && !empty($file)) {
+					$page->addBody($this->linkPath($uri . '/' . rawurlencode($file), $this->request . '/' . $file, $file) . '<br/>');
+				} elseif($file == '..') {
+					if($uri != '/' . $this->hash)
+					$page->addBody('<a href="' . $uri . '/.."><i class="up"></i>..</a><br/>');
+				}
+				
 			}
 			/* Close fileinfo handle */
 			finfo_close($finfo);
@@ -490,9 +496,9 @@ class share {
 		
 		/* Page header */
 		if(!empty($this->config['name']))
-		    $page->addHeader(htmlspecialchars($this->config['name']));
-        
-        /* Error */
+			$page->addHeader(htmlspecialchars($this->config['name']));
+		
+		/* Error */
 		$page->addBody('<h1>Error: ' . $code . '</h1><p>' . $message . '</p>');
 		
 		/* Render and exit */
@@ -549,7 +555,7 @@ class share {
 		/* Change the line containing the password with a hashed version */
 		foreach($config as $line=>$setting)
 			if(substr($setting,0,8) == 'password')
-				$config[$line] = 'password    = ' . password_hash($this->config['password'], PASSWORD_BCRYPT, array('cost' => 12)) . "\r\n";
+				$config[$line] = 'password	= ' . password_hash($this->config['password'], PASSWORD_BCRYPT, array('cost' => 12)) . "\r\n";
 		
 		/* Write file back */
 		file_put_contents(__DIR__.'/config.ini', implode($config)) or die('Could not write config');
