@@ -67,6 +67,10 @@ header {
     box-shadow: inset 0em -.5em 1em rgba(15,15,15,0.5);
 }
 
+header a {
+    color: white;
+}
+
 section {
     position: relative;
     width: 100%;
@@ -114,8 +118,37 @@ table.sharelist {
 	width: 100%;
 }
 
+table.sharelist td:first-child {
+	width: 100%;
+}
+
 table.sharelist td:last-child {
 	text-align: center;
+}
+
+form#login {
+    width: 15em;
+    margin: 0 auto;
+}
+
+form#login input[type=text], form#login input[type=password] {
+    width: 13em;
+    height: 1.6em;
+    background-color: white;
+    border: .2em solid rgb(120,120,120);
+}
+
+form.logout {
+    position: relative;
+    float: right;
+    z-index: 1;
+}
+
+input[type=submit] {
+    color: white;
+    background-color: rgb(120,120,120);
+    border: .2em solid rgb(120,120,120);
+    cursor: pointer;
 }
 
 /* i is for icons */
@@ -131,6 +164,10 @@ i {
     
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+h1.top {
+    margin-top: 0em;
 }
 
 h1 i {
