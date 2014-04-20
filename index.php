@@ -65,12 +65,13 @@ class htmlPage {
 /* Class which allows for simple filesharing */
 class share {
 	private $config;
+	private $db;
+	private $roots = array();
 	private $hash;
 	private $hashPath;
 	private $request;
-	private $db;
-	private $roots = array();
-
+	private $requestRoot;
+	
 	/* On object creation */
 	public function __construct($config = null) {
 		if($config)
@@ -127,15 +128,29 @@ class share {
 	/* Get the path for the requested file, returns true for admin */
 	public function setRequest() {
 		/* Generate requested file from url */
+		
+		$docroot = explode('/', $_SERVER['DOCUMENT_ROOT']);
 		$request = explode('/', $_SERVER['REQUEST_URI']);
 		$curfile = explode('/', $_SERVER['SCRIPT_FILENAME']);
 		
-		/* Unset all request items that are in the filename */
-		for($i = 0; $i < sizeof($curfile); $i++) {
-			if(array_key_exists($i, $request) && $request[$i] == $curfile[$i]) {
-				unset($request[$i]);
-			}
-		}
+		/* Change the filename to a relative path */
+		foreach($docroot as $l => $path)
+		    if(array_key_exists($l, $curfile) && $curfile[$l] && $curfile[$l] == $path)
+		        unset($curfile[$l]);
+		        
+        /* Re-index array */
+		$curfile = @array_values($curfile);
+		
+		/* Now determine the request to the file */
+		foreach($curfile as $l => $path) {
+            if(array_key_exists($l, $request) && $request[$l] == $path) {
+		        /* Save the subfolder for later use */
+		        $this->requestRoot .= $path . '/';
+		        
+		        /* Remove it from the request */
+		        unset($request[$l]);
+            }
+        }
 		
 		/* Re-index array */
 		$request = @array_values($request);
@@ -178,11 +193,10 @@ class share {
 		$page = new htmlPage(htmlspecialchars('Admin – ' . $this->config['name']));
 			
 		/* Page header */
-		if(!empty($this->config['name']))
-			$page->addHeader(htmlspecialchars($this->config['name']));
+		$this->setHead($page);
 		
 		/* Allow adding of share */
-		$page->addBody('<h1>Share file/folder</h1><form method="post">Path: <input class="path" type="text" name="path"/><input type="submit" value="share"/></form>');
+		$page->addBody('<form class="logout" method="post"><input type="hidden" name="logout" /><input type="submit" value="Logout" /></form><h1 class="top">Share file/folder</h1><form method="post">Path: <input class="path" type="text" name="path"/><input type="submit" value="share"/></form>');
 		
 		/* Get table of shares */
 		$page->addBody('<h1>List of shared files/folders</h1>' . $this->adminTable());
@@ -194,6 +208,13 @@ class share {
 	
 	/* Handle post/get requests to the admin interface */
 	private function adminRequest() {
+		/* Logout */
+		if(isset($_REQUEST['logout'])) {
+            $_SESSION['login'] = false;
+            header('Location: ' . $this->requestRoot);
+            exit;
+		}
+		
 		/* Share new files */
 		if(isset($_REQUEST['path']))
 			$this->queryForFile(
@@ -225,8 +246,13 @@ class share {
 		$html = '<form method="post"><table class="sharelist">';
 		
 		/* Loop trough all shared files and create hyperlinks */
-		while($file = $entries->fetchArray())
-			$html .= '<tr><td>' . $this->linkPath($this->config['address'] . '/' . $file['hash'], $file['path']) .'</td><td><input type="checkbox" name="hash[]" value="' . $file['hash'] . '" /></td><tr>';
+		while($file = $entries->fetchArray()) {
+		    if($file)
+		        $html .= '<tr><td>' . $this->linkPath($this->config['address'] . '/' . $file['hash'], $file['path']) .'</td><td><input type="checkbox" name="hash[]" value="' . $file['hash'] . '" /></td><tr>';
+		    else
+		        return "There are no shared files or folders.";
+		    
+        }
 			
 		/* Conclude form and return it */
 		$html .= '<tr><td></td><td><input type="submit" value="Del"/></td></tr></table></form>';
@@ -236,18 +262,21 @@ class share {
 	/* Handle logins for the admin interface */
 	private function adminLogin() {
 		/* Check if user tried to login */
-		if(isset($_REQUEST['username']) && isset($_REQUEST['password'])  && $_REQUEST['username'] == $this->config['username'] && password_verify($_REQUEST['password'], $this->config['password'])) {
+		if(isset($_REQUEST['username'])
+		    && isset($_REQUEST['password']) 
+		    && $_REQUEST['username'] == $this->config['username']
+		    && password_verify($_REQUEST['password'], $this->config['password'])) {
 			$_SESSION['login'] = true;
-			header('Location: /');
+			header('Location: ' . $this->requestRoot);
 		}
+		
 		/* HTML base page */
 		$page = new htmlPage(htmlspecialchars('Login – ' . $this->config['name']));
 			
 		/* Page header */
-		if(!empty($this->config['name']))
-			$page->addHeader(htmlspecialchars($this->config['name']));
+		$this->setHead($page);
 			
-		$page->addBody('<form name="login" method="post">
+		$page->addBody('<form name="login" method="post" id="login">
 			<table>
 				<tr>
 					<td>Username:</td>
@@ -407,8 +436,7 @@ class share {
 			$page = new htmlPage(htmlspecialchars(basename($this->request) . ' – ' . $this->config['name']));
 			
 			/* Page header */
-			if(!empty($this->config['name']))
-				$page->addHeader(htmlspecialchars($this->config['name']));
+			$this->setHead($page);
 			
 			/* Folder name */
 			$page->addBody('<h1><i class="directory open"></i>' . htmlspecialchars(basename($this->request)) . '</h1>');
@@ -496,8 +524,7 @@ class share {
 		$page = new htmlPage('Error: ' . $code);
 		
 		/* Page header */
-		if(!empty($this->config['name']))
-			$page->addHeader(htmlspecialchars($this->config['name']));
+		$this->setHead($page);
 		
 		/* Error */
 		$page->addBody('<h1>Error: ' . $code . '</h1><p>' . $message . '</p>');
@@ -564,6 +591,15 @@ class share {
 		
 		/* Return assembled link */
 		return '<a href="' . $link . '"><i class="' . $mime . '"></i> ' . htmlspecialchars($name) . $size . '</a>';	
+	}
+	
+	/* Set the header for the page */
+	private function setHead($page) {
+	    /* Page style */
+	    $page->addHead('<link rel="stylesheet" type="text/css" href="' . $this->requestRoot . 'style.css" />');
+	
+    	/* Page header */
+		$page->addHeader('<a href="' . $this->requestRoot . '">' . htmlspecialchars($this->config['name']) . '</a>');
 	}
 }
 
