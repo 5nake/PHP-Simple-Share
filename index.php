@@ -262,7 +262,8 @@ class share {
 	/* Handle logins for the admin interface */
 	private function adminLogin() {
 		/* Compatibility for PHP 5.3.7 - 5.5.0 */
-		require_once __DIR__ . '/password_compat/lib/password.php';
+		if(file_exists(__DIR__ . '/password_compat/lib/password.php'))
+			include_once(__DIR__ . '/password_compat/lib/password.php');
 	
 		/* Check if user tried to login */
 		if(isset($_REQUEST['username'])
@@ -540,7 +541,8 @@ class share {
 	/* Hash password currently in database and change it in config */
 	private function hashConfigPassword() {
 		/* Compatibility for PHP 5.3.7 - 5.5.0 */
-		require_once __DIR__ . '/password_compat/lib/password.php';
+		if(file_exists(__DIR__ . '/password_compat/lib/password.php'))
+			include_once(__DIR__ . '/password_compat/lib/password.php');
 	
 		/* Read config into an array */
 		$config = file(__DIR__.'/config.ini');

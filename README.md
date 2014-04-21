@@ -50,8 +50,11 @@ All requests should be routed to `index.php`, more about that in *Server Setting
 
 It also requires the following server settings:
 
- * PHP >= 5.3.7
- * The PHP SQLite3 extension (enabled by default for PHP >= 5.3.0)
+ * PHP >= 5.5.0 or PHP >= 5.3.7 with the `password_compat` library.
+ * The PHP SQLite3 extension (enabled by default for PHP >= 5.3.0).
+ 
+Use `git clone --recursive https://github.com/silkeh/PHP-Simple-Share.git` to download the `password_compat` library while cloning.
+If you download the `.zip`, you also need to download the `password_compat` library [from GitHub][6].
 
 Configuration
 -------------
@@ -135,3 +138,4 @@ If you don't use this feature, set `readfile` to `true` in the configuration.
 [3]: http://php.net/manual/en/function.hash-algos.php
 [4]: https://dl.dropboxusercontent.com/u/6849076/Github/php-simple-share-1.png
 [5]: https://dl.dropboxusercontent.com/u/6849076/Github/php-simple-share-2.png
+[6]: https://github.com/ircmaxell/password_compat
