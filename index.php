@@ -569,8 +569,10 @@ class share {
 		
 		/* For files (not directories) calculate the filesize */
 		$size = "";
-		if($mime != 'directory')
-			$size = ' (' . $this->fileSize($file) . ')';
+		if($mime != 'directory') {
+			if($filesize = $this->fileSize($file))
+				$size = ' (' . $filesize . ')';
+		}
 		
 		/* Close fileinfo handle */
 		finfo_close($finfo);
