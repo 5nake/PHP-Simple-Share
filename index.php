@@ -135,22 +135,22 @@ class share {
 		
 		/* Change the filename to a relative path */
 		foreach($docroot as $l => $path)
-		    if(array_key_exists($l, $curfile) && $curfile[$l] && $curfile[$l] == $path)
-		        unset($curfile[$l]);
-		        
-        /* Re-index array */
+			if(array_key_exists($l, $curfile) && $curfile[$l] && $curfile[$l] == $path)
+				unset($curfile[$l]);
+				
+		/* Re-index array */
 		$curfile = @array_values($curfile);
 		
 		/* Now determine the request to the file */
 		foreach($curfile as $l => $path) {
-            if(array_key_exists($l, $request) && $request[$l] == $path) {
-		        /* Save the subfolder for later use */
-		        $this->requestRoot .= $path . '/';
-		        
-		        /* Remove it from the request */
-		        unset($request[$l]);
-            }
-        }
+			if(array_key_exists($l, $request) && $request[$l] == $path) {
+				/* Save the subfolder for later use */
+				$this->requestRoot .= $path . '/';
+				
+				/* Remove it from the request */
+				unset($request[$l]);
+			}
+		}
 		
 		/* Re-index array */
 		$request = @array_values($request);
@@ -210,9 +210,9 @@ class share {
 	private function adminRequest() {
 		/* Logout */
 		if(isset($_REQUEST['logout'])) {
-            $_SESSION['login'] = false;
-            header('Location: ' . $this->requestRoot);
-            exit;
+			$_SESSION['login'] = false;
+			header('Location: ' . $this->requestRoot);
+			exit;
 		}
 		
 		/* Share new files */
@@ -247,12 +247,12 @@ class share {
 		
 		/* Loop trough all shared files and create hyperlinks */
 		while($file = $entries->fetchArray()) {
-		    if($file)
-		        $html .= '<tr><td>' . $this->linkPath($this->config['address'] . '/' . $file['hash'], $file['path']) .'</td><td><input type="checkbox" name="hash[]" value="' . $file['hash'] . '" /></td><tr>';
-		    else
-		        return "There are no shared files or folders.";
-		    
-        }
+			if($file)
+				$html .= '<tr><td>' . $this->linkPath($this->config['address'] . '/' . $file['hash'], $file['path']) .'</td><td><input type="checkbox" name="hash[]" value="' . $file['hash'] . '" /></td><tr>';
+			else
+				return "There are no shared files or folders.";
+			
+		}
 			
 		/* Conclude form and return it */
 		$html .= '<tr><td></td><td><input type="submit" value="Del"/></td></tr></table></form>';
@@ -261,11 +261,14 @@ class share {
 	
 	/* Handle logins for the admin interface */
 	private function adminLogin() {
+		/* Compatibility for PHP 5.3.7 - 5.5.0 */
+		require_once __DIR__ . '/password_compat/lib/password.php';
+	
 		/* Check if user tried to login */
 		if(isset($_REQUEST['username'])
-		    && isset($_REQUEST['password']) 
-		    && $_REQUEST['username'] == $this->config['username']
-		    && password_verify($_REQUEST['password'], $this->config['password'])) {
+			&& isset($_REQUEST['password']) 
+			&& $_REQUEST['username'] == $this->config['username']
+			&& password_verify($_REQUEST['password'], $this->config['password'])) {
 			$_SESSION['login'] = true;
 			header('Location: ' . $this->requestRoot);
 		}
@@ -357,26 +360,6 @@ class share {
 			true,
 			false
 		);
-	}
-	
-	/* Execute a query for a file */
-	private function queryForFile($query, $file, $hash = false, $path = true) {
-		/* Resolve path */
-		if($path)
-			$file = truepath($file);
-		
-		/* Bind path */
-		$query->bindValue(':path', SQLite3::escapeString($file), SQLITE3_TEXT);
-		
-		/* Calculate and bind/save hash */
-		if($hash) {
-			$hash = hash($this->config['algorithm'], $file . microtime());
-			$query->bindValue(':hash', $hash, SQLITE3_TEXT);
-			$this->hash = $hash;
-		}
-		
-		/* Execute query */
-		return $query->execute();
 	}
 	
 	/* Execute a query based on command line arguments */
@@ -556,6 +539,9 @@ class share {
 	
 	/* Hash password currently in database and change it in config */
 	private function hashConfigPassword() {
+		/* Compatibility for PHP 5.3.7 - 5.5.0 */
+		require_once __DIR__ . '/password_compat/lib/password.php';
+	
 		/* Read config into an array */
 		$config = file(__DIR__.'/config.ini');
 		
@@ -565,7 +551,7 @@ class share {
 				$config[$line] = 'password	= ' . password_hash($this->config['password'], PASSWORD_BCRYPT, array('cost' => 12)) . "\r\n";
 		
 		/* Write file back */
-		file_put_contents(__DIR__.'/config.ini', implode($config)) or die('Could not write config');
+		file_put_contents(__DIR__.'/config.ini', implode($config)) or die('Could not write to `config.ini`');
 		
 		/* Reload config */
 		$this->config = parse_ini_file(__DIR__.'/config.ini');
@@ -593,12 +579,32 @@ class share {
 		return '<a href="' . $link . '"><i class="' . $mime . '"></i> ' . htmlspecialchars($name) . $size . '</a>';	
 	}
 	
+	/* Execute a query for a file */
+	private function queryForFile($query, $file, $hash = false, $path = true) {
+		/* Resolve path */
+		if($path)
+			$file = truepath($file);
+		
+		/* Bind path */
+		$query->bindValue(':path', SQLite3::escapeString($file), SQLITE3_TEXT);
+		
+		/* Calculate and bind/save hash */
+		if($hash) {
+			$hash = hash($this->config['algorithm'], $file . microtime());
+			$query->bindValue(':hash', $hash, SQLITE3_TEXT);
+			$this->hash = $hash;
+		}
+		
+		/* Execute query */
+		return $query->execute();
+	}
+	
 	/* Set the header for the page */
 	private function setHead($page) {
-	    /* Page style */
-	    $page->addHead('<link rel="stylesheet" type="text/css" href="' . $this->requestRoot . 'style.css" />');
+		/* Page style */
+		$page->addHead('<link rel="stylesheet" type="text/css" href="' . $this->requestRoot . 'style.css" />');
 	
-    	/* Page header */
+		/* Page header */
 		$page->addHeader('<a href="' . $this->requestRoot . '">' . htmlspecialchars($this->config['name']) . '</a>');
 	}
 }
@@ -611,29 +617,29 @@ class share {
  * @author Christian (http://stackoverflow.com/a/4050444/1882566), patch by andig
  */
 function truepath($path){
-    // whether $path is unix or not
-    $unipath=strlen($path)==0 || $path{0}!='/';
-    // attempts to detect if path is relative in which case, add cwd 
-    if(strpos($path,':')===false && $unipath) { 
-        $path=getcwd().DIRECTORY_SEPARATOR.$path;
-        $unipath=false;
-    }
-    // resolve path parts (single dot, double dot and double delimiters)
-    $path = str_replace(array('/', '\\'), DIRECTORY_SEPARATOR, $path);
-    $parts = array_filter(explode(DIRECTORY_SEPARATOR, $path), 'strlen');
-    $absolutes = array();
-    foreach ($parts as $part) {
-        if ('.'  == $part) continue;
-        if ('..' == $part) {
-            array_pop($absolutes);
-        } else {
-            $absolutes[] = $part;
-        }
-    }
-    $path=implode(DIRECTORY_SEPARATOR, $absolutes);
-    // resolve any symlinks
-    if(file_exists($path) && linkinfo($path)>0)$path=readlink($path);
-    // put initial separator that could have been lost
-    $path=!$unipath ? '/'.$path : $path;
-    return $path;
+	// whether $path is unix or not
+	$unipath=strlen($path)==0 || $path{0}!='/';
+	// attempts to detect if path is relative in which case, add cwd 
+	if(strpos($path,':')===false && $unipath) { 
+		$path=getcwd().DIRECTORY_SEPARATOR.$path;
+		$unipath=false;
+	}
+	// resolve path parts (single dot, double dot and double delimiters)
+	$path = str_replace(array('/', '\\'), DIRECTORY_SEPARATOR, $path);
+	$parts = array_filter(explode(DIRECTORY_SEPARATOR, $path), 'strlen');
+	$absolutes = array();
+	foreach ($parts as $part) {
+		if ('.'  == $part) continue;
+		if ('..' == $part) {
+			array_pop($absolutes);
+		} else {
+			$absolutes[] = $part;
+		}
+	}
+	$path=implode(DIRECTORY_SEPARATOR, $absolutes);
+	// resolve any symlinks
+	if(file_exists($path) && linkinfo($path)>0)$path=readlink($path);
+	// put initial separator that could have been lost
+	$path=!$unipath ? '/'.$path : $path;
+	return $path;
 }
