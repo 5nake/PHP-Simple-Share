@@ -12,7 +12,7 @@ Let's say I want to share a file named `/share/file.zip`. There are two ways to 
 
 Login to the web interface, you'll see something like the following
 
-![Admin Interface][4]
+![Admin Interface][5]
 
 To add a file, simply enter the path to the file and click ‘share’.
 Paths can be relative and symbolic links will be resolved.
