@@ -7,6 +7,7 @@ class htmlPage {
 	private $body;
 	private $title;
 	private $head;
+	private $header;
 
 	/* Set title on creation of object */
 	public function __construct($title = '') {
@@ -64,12 +65,13 @@ class htmlPage {
 /* Class which allows for simple filesharing */
 class share {
 	private $config;
+	private $db;
+	private $roots = array();
 	private $hash;
 	private $hashPath;
 	private $request;
-	private $db;
-	private $roots = array();
-
+	private $requestRoot;
+	
 	/* On object creation */
 	public function __construct($config = null) {
 		if($config)
@@ -87,10 +89,213 @@ class share {
 		if(php_sapi_name() == 'cli')
 			$this->cli();
 		
-		/* Get required information and route request */
-		$this->setRoots();
-		$this->setRequest();
-		$this->handleRequest();
+		/* Set request and server a share or the admin interface */
+		if($this->setRequest())
+			$this->admin();
+		else
+			$this->share();
+	}
+	
+	/* Sets config from file, or default */
+	private function setConfig() {
+		/* Check if config file exists or use default config */
+		if(file_exists(__DIR__.'/config.ini')) {
+			/* Load config */
+			$this->config = parse_ini_file(__DIR__.'/config.ini');
+			
+			/* Load roots */
+			$this->roots = array_map('trim', explode(',', $this->config['allowroots']));
+			
+			/* If the password hasn't been hashed, do it */
+			if(substr($this->config['password'],0,1) != '$')
+				$this->hashConfigPassword();
+		} else {
+			/* Default config */
+			$this->config = array(
+				'name'=>'PHP Simple Share (Default Config)',
+				'algorithm'=>'sha1',
+				'database' => 'share.sqlite3',
+				'readfile' => false,
+				'disposition'=> 'attachment',
+				'address'=>'http://[your address here]',
+				'username'=>'phpsimpleshare',
+				'password'=>'$2y$11$4b3Rob9XGsabL.462DpOvuVclaLuuZJkJ5GBo3zZgKfPjnVTBLmSO'
+			);
+			$this->roots = array('/');
+		}
+	}
+	
+	/* Get the path for the requested file, returns true for admin */
+	public function setRequest() {
+		/* Generate requested file from url */
+		
+		$docroot = explode('/', $_SERVER['DOCUMENT_ROOT']);
+		$request = explode('/', $_SERVER['REQUEST_URI']);
+		$curfile = explode('/', $_SERVER['SCRIPT_FILENAME']);
+		
+		/* Change the filename to a relative path */
+		foreach($docroot as $l => $path)
+			if(array_key_exists($l, $curfile) && $curfile[$l] && $curfile[$l] == $path)
+				unset($curfile[$l]);
+				
+		/* Re-index array */
+		$curfile = @array_values($curfile);
+		
+		/* Now determine the request to the file */
+		foreach($curfile as $l => $path) {
+			if(array_key_exists($l, $request) && $request[$l] == $path) {
+				/* Save the subfolder for later use */
+				$this->requestRoot .= $path . '/';
+				
+				/* Remove it from the request */
+				unset($request[$l]);
+			}
+		}
+		
+		/* Re-index array */
+		$request = @array_values($request);
+		
+		/* Check if request still has values, else show login */
+		if(!$request[0])
+			return true;
+
+		/* Store the hash (escaped) */
+		$this->hash = SQLite3::escapeString($request[0]);
+		
+		/* Remove hash from request */ 
+		unset($request[0]);
+		
+		/* Get path from db */
+		$this->hashPath = $this->db->querySingle('SELECT path FROM files WHERE hash="' . $this->hash . '"');
+		
+		/* Assemble full request */
+		$this->request = $this->hashPath;
+		if(isset($request[1]))
+			foreach($request as $req)
+				$this->request .= '/' . rawurldecode($req);
+	}
+	
+	/* Check session for valid login and serve either admin page or login page */
+	private function admin() {
+		session_start();
+		if(isset($_SESSION['login']) && $_SESSION['login'] === true)
+			$this->adminInterface();
+		else
+			$this->adminLogin();
+	}
+	
+	/* Provide the admin interface */
+	private function adminInterface() {
+		if(isset($_REQUEST))
+			$this->adminRequest();
+		
+		/* HTML base page */
+		$page = new htmlPage(htmlspecialchars('Admin – ' . $this->config['name']));
+			
+		/* Page header */
+		$this->setHead($page);
+		
+		/* Allow adding of share */
+		$page->addBody('<form class="logout" method="post"><input type="hidden" name="logout" /><input type="submit" value="Logout" /></form><h1 class="top">Share file/folder</h1><form method="post">Path: <input class="path" type="text" name="path"/><input type="submit" value="share"/></form>');
+		
+		/* Get table of shares */
+		$page->addBody('<h1>List of shared files/folders</h1>' . $this->adminTable());
+		
+		/* Render page and exit */
+		$page->render();
+		exit;
+	}
+	
+	/* Handle post/get requests to the admin interface */
+	private function adminRequest() {
+		/* Logout */
+		if(isset($_REQUEST['logout'])) {
+			$_SESSION['login'] = false;
+			header('Location: ' . $this->requestRoot);
+			exit;
+		}
+		
+		/* Share new files */
+		if(isset($_REQUEST['path']))
+			$this->queryForFile(
+				$this->db->prepare('INSERT INTO files (hash,path) VALUES (:hash, :path)'),
+				$_REQUEST['path'],
+				true
+			);
+		
+		/* Delete files from share */
+		if(isset($_REQUEST['hash']))
+			foreach($_REQUEST['hash'] as $hash)
+				$this->queryForFile(
+				$this->db->prepare('DELETE FROM files WHERE hash=:path'),
+				$hash,
+				true,
+				false
+			);
+	}
+	
+	/* Generate the table for the admin interface */
+	private function adminTable() {
+		/* Query to get all shared files */
+		$entries = $this->db->query('SELECT * FROM files');
+		
+		/* Initialise fileinfo handle to check mime type */
+		$finfo = finfo_open(FILEINFO_MIME_TYPE);
+		
+		/* Start of form/table */
+		$html = '<form method="post"><table class="sharelist">';
+		
+		/* Loop trough all shared files and create hyperlinks */
+		while($file = $entries->fetchArray()) {
+			if($file)
+				$html .= '<tr><td>' . $this->linkPath($this->config['address'] . '/' . $file['hash'], $file['path']) .'</td><td><input type="checkbox" name="hash[]" value="' . $file['hash'] . '" /></td><tr>';
+			else
+				return "There are no shared files or folders.";
+			
+		}
+			
+		/* Conclude form and return it */
+		$html .= '<tr><td></td><td><input type="submit" value="Del"/></td></tr></table></form>';
+		return $html;
+	}
+	
+	/* Handle logins for the admin interface */
+	private function adminLogin() {
+		/* Compatibility for PHP 5.3.7 - 5.5.0 */
+		require_once __DIR__ . '/password_compat/lib/password.php';
+	
+		/* Check if user tried to login */
+		if(isset($_REQUEST['username'])
+			&& isset($_REQUEST['password']) 
+			&& $_REQUEST['username'] == $this->config['username']
+			&& password_verify($_REQUEST['password'], $this->config['password'])) {
+			$_SESSION['login'] = true;
+			header('Location: ' . $this->requestRoot);
+		}
+		
+		/* HTML base page */
+		$page = new htmlPage(htmlspecialchars('Login – ' . $this->config['name']));
+			
+		/* Page header */
+		$this->setHead($page);
+			
+		$page->addBody('<form name="login" method="post" id="login">
+			<table>
+				<tr>
+					<td class="icon">&#xf007;</td>
+					<td><input type="text" name="username"/></td>
+				</tr>
+				<tr>
+					<td class="icon">&#xf023;</td>
+					<td><input type="password" name="password"/></td>
+				</tr>
+				<tr>
+				<td></td><td><input type="submit" value="Login"/></td></tr>
+			</table>
+		</form>');
+
+		$page->render();
+		exit;
 	}
 	
 	/* Command Line Interface */
@@ -147,30 +352,6 @@ class share {
 			echo $file['hash'] . ' ' . $file['path'] . "\n";
 	}
 	
-	/* List allowed roots */
-	private function cliListRoots() {
-		$entries = $this->db->query('SELECT * FROM roots');
-		echo "Files and folders in the following roots can be shared:\n\n";
-		while($file = $entries->fetchArray())
-			echo $file['path'] . "\n";
-	}
-	
-	/* Add a path to allowed roots */
-	private function cliAddRoot() {
-		$this->cliQueryForArgs(
-			$this->db->prepare('INSERT INTO roots (path) VALUES (:path)'),
-			"Added :path to allowed roots\n"
-		);
-	}
-	
-	/* Remove a path from allowed roots */
-	private function cliDelRoot() {
-		$this->cliQueryForArgs(
-			$this->db->prepare('DELETE FROM roots WHERE path=:path'),
-			"Removed :path from allowed roots\n"
-		);
-	}
-	
 	/* Add a new shared file/folder */
 	private function cliDel() {
 		$this->cliQueryForArgs(
@@ -181,7 +362,7 @@ class share {
 		);
 	}
 	
-	/* Execute a query based on arguments */
+	/* Execute a query based on command line arguments */
 	private function cliQueryForArgs($query, $message, $hash = false, $path = true) {
 		global $argv;
 		
@@ -193,26 +374,15 @@ class share {
 		
 		/* Loop trough arguments and execute query for each */
 		foreach($argv as $f) {
-			/* Resolve path */
-			if($path)
-				$f = realpath($f);
-			
 			/* Generate message */
 			$m = str_replace(':path', $f, $message);
 			
-			/* Bind path */
-			$query->bindValue(':path', SQLite3::escapeString($f), SQLITE3_TEXT);
-			
-			/* Calculate and bind/replace hash */
-			if($hash) {
-				$hash = hash($this->config['algorithm'], $f . microtime());
-				$query->bindValue(':hash', $hash, SQLITE3_TEXT);
-				$m = str_replace(':hash', $hash, $m);
-			}
-			
-			/* Execute query */
-			if($query->execute())
-				echo $m;
+			/* Execute the query and output result */
+			if($this->queryForFile($query, $f, $hash, $path))
+				if($hash)
+					echo str_replace(':hash', $this->hash, $m);
+				else
+					echo $m;
 		}
 	}
 	
@@ -221,65 +391,17 @@ class share {
 		exit(
 			"Usage:\n".
 			"  index.php [share|list|addroot|delroot] [path]\n\n".
-			"    list              List shared files\n".
-			"    share [files]     Share file(s)\n".
-			"    del [hash(es)]    Stop sharing file(s) with hash(es)\n".
-			"    listroots         List allowed roots\n".
-			"    addroot [roots]   Add path(s) to allowed roots\n".
-			"    delroot [roots]   Remove path(s) from allowed roots\n"
+			"	list			  List shared files\n".
+			"	share [files]	 Share file(s)\n".
+			"	del [hash(es)]	Stop sharing file(s) with hash(es)\n"
 		);
 	}
 	
-	/* Get allowed roots from database */
-	public function setRoots() {
-		$roots = $this->db->query('SELECT * from roots');
-		while($root = $roots->fetchArray())
-			$this->roots[] = $root[0];
-	}
-	
-	/* Get the path for the requested file */
-	public function setRequest() {
-		/* Generate requested file from url */
-		$request = explode('/', $_SERVER['REQUEST_URI']);
-		$curfile = explode('/', $_SERVER['SCRIPT_FILENAME']);
-		
-		/* Unset all request items that are in the filename */
-		for($i = 0; $i < sizeof($curfile); $i++) {
-			if(array_key_exists($i, $request) && $request[$i] == $curfile[$i]) {
-				unset($request[$i]);
-			}
-		}
-		
-		/* Re-index array */
-		$request = @array_values($request);
-		
-		/* Check if request still has values, else 404 */
-		if(!$request)
-			$this->error(404);
-
-		/* Store the hash (escaped) */
-		$this->hash = SQLite3::escapeString($request[0]);
-		
-		/* Remove hash from request */ 
-		unset($request[0]);
-		
-		/* Get path from db */
-		$this->hashPath = $this->db->querySingle('SELECT path FROM files WHERE hash="' . $this->hash . '"');
-		
-		/* Assemble full request */
-		$this->request = $this->hashPath;
-		if(isset($request[1]))
-			foreach($request as $req)
-				$this->request .= '/' . rawurldecode($req);
-	}
-
 	/* Check the request and serve it */
-	public function handleRequest() {
-	    /* Initialise fileinfo handle to check mime type */
-	    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-	    
+	public function share() { 
 		/* Check request path */
-		$this->request = realpath($this->request);
+		if(!empty($this->request))
+			$this->request = truepath($this->request);
 		
 		/* Error at empty request or non-existing file */
 		if(empty($this->request) || !file_exists($this->request))
@@ -297,8 +419,7 @@ class share {
 			$page = new htmlPage(htmlspecialchars(basename($this->request) . ' – ' . $this->config['name']));
 			
 			/* Page header */
-			if(!empty($this->config['name']))
-			    $page->addHeader(htmlspecialchars($this->config['name']));
+			$this->setHead($page);
 			
 			/* Folder name */
 			$page->addBody('<h1><i class="directory open"></i>' . htmlspecialchars(basename($this->request)) . '</h1>');
@@ -313,19 +434,27 @@ class share {
 			
 			/* Show files */
 			foreach($files as $file) {
-				if(substr($file,0,1) != '.' && !empty($file))
-					$page->addBody('<a href="' . $_SERVER['REQUEST_URI'] . '/' . rawurlencode($file) . '"><i class="' . finfo_file($finfo, $this->request . '/' . $file) . '"></i>' . htmlspecialchars($file) . '</a><br/>');
-				elseif($file == '..')
-					$page->addBody('<a href="/' . $this->hash . '"><i class="up"></i>..</a><br/>');
+				/* Strip trailing slash from request */
+				$uri = rtrim($_SERVER['REQUEST_URI'], '/');
+				
+				/* If it's a regular file, add a link to body */
+				if(substr($file,0,1) != '.' && !empty($file)) {
+					$page->addBody($this->linkPath($uri . '/' . rawurlencode($file), $this->request . '/' . $file, $file) . '<br/>');
+				} elseif($file == '..') {
+					if($uri != '/' . $this->hash)
+					$page->addBody('<a href="' . $uri . '/.."><i class="up"></i>..</a><br/>');
+				}
+				
 			}
-			/* Close fileinfo handle */
-			finfo_close($finfo);
 			
 			/* Render page and exit */
 			$page->render();
 			exit;
 		} else {
-			/* Let the webserver handle the file */
+			/* Open a fileinfo handle and get the mime type */
+			$finfo = finfo_open(FILEINFO_MIME_TYPE);
+		
+			/* Let the webserver handle the file if possible */
 			if($this->config['readfile'])
 				readfile($this->request);
 			elseif(strstr($_SERVER['SERVER_SOFTWARE'], 'nginx'))
@@ -343,15 +472,6 @@ class share {
 		}
 	}
 	
-	/* Sets config from file, or default */
-	private function setConfig() {
-		if(file_exists(__DIR__.'/config.ini'))
-			$this->config = parse_ini_file(__DIR__.'/config.ini');
-		else
-			$this->config = array('name'=>'PHP Simple Share','algorithm'=>'sha1', 'database' => 'share.sqlite3', 'readfile' => false, 'disposition'=> 'attachment', 'address'=>'http://[your address here]');
-
-	}
-	
 	/* Check if request is in allowed roots */
 	private function checkRequestPath() {
 		foreach($this->roots as $root)
@@ -359,11 +479,18 @@ class share {
 		return false;
 	}
 	
+	/* Populate database */
+	private function createDB() {
+		$this->db = new SQLite3(__DIR__ . '/' . $this->config['database']);
+		$this->db->exec('CREATE TABLE files(hash TEXT PRIMARY KEY, path TEXT)');
+	}
+	
 	/* Serve an html error */
 	private function error($code, $message=null) {
 		/* Set response code */
 		http_response_code($code);
 		
+		/* Table of fallback messages */
 		if(!$message)
 			switch($code) {
 				case 404:
@@ -380,10 +507,9 @@ class share {
 		$page = new htmlPage('Error: ' . $code);
 		
 		/* Page header */
-		if(!empty($this->config['name']))
-		    $page->addHeader(htmlspecialchars($this->config['name']));
-        
-        /* Error */
+		$this->setHead($page);
+		
+		/* Error */
 		$page->addBody('<h1>Error: ' . $code . '</h1><p>' . $message . '</p>');
 		
 		/* Render and exit */
@@ -391,10 +517,129 @@ class share {
 		exit;
 	}
 	
-	/* Populate database */
-	private function createDB() {
-		$this->db = new SQLite3(__DIR__ . '/' . $this->config['database']);
-		$this->db->exec('CREATE TABLE roots(path TEXT)');
-		$this->db->exec('CREATE TABLE files(hash TEXT PRIMARY KEY, path TEXT)');
+	/* Return filesize for any file */
+	private function fileSize($file) {
+		/* Load units */
+		$units = array('B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB');
+		
+		/* Check if file exists */
+		if(file_exists($file)) {
+			$filesize = filesize($file);
+			
+			/* If the filesize is clearly incorrect, don't show it */
+			if($filesize) {
+				/* Turn the size into human readable format */
+				$factor = floor((strlen($filesize) - 1) / 3);
+				return sprintf("%.1f", $filesize / pow(1024, $factor)) . ' ' . @$units[$factor];
+			}
+		} else {
+			return 'does not exist';
+		}
 	}
+	
+	/* Hash password currently in database and change it in config */
+	private function hashConfigPassword() {
+		/* Compatibility for PHP 5.3.7 - 5.5.0 */
+		require_once __DIR__ . '/password_compat/lib/password.php';
+	
+		/* Read config into an array */
+		$config = file(__DIR__.'/config.ini');
+		
+		/* Change the line containing the password with a hashed version */
+		foreach($config as $line=>$setting)
+			if(substr($setting,0,8) == 'password')
+				$config[$line] = 'password	= ' . password_hash($this->config['password'], PASSWORD_BCRYPT, array('cost' => 12)) . "\r\n";
+		
+		/* Write file back */
+		file_put_contents(__DIR__.'/config.ini', implode($config)) or die('Could not write to `config.ini`');
+		
+		/* Reload config */
+		$this->config = parse_ini_file(__DIR__.'/config.ini');
+	}
+	
+	/* Generate a hyperlink for a path */
+	private function linkPath($link, $file, $name = false) {
+		/* Open a fileinfo handle and get the mime type */
+		$finfo = finfo_open(FILEINFO_MIME_TYPE);
+		$mime = @finfo_file($finfo, $file);
+		
+		/* Check if a custom name was set, otherwise use filename */
+		if(!$name)
+			$name = $file;
+		
+		/* For files (not directories) calculate the filesize */
+		$size = "";
+		if($mime != 'directory')
+			$size = ' (' . $this->fileSize($file) . ')';
+		
+		/* Close fileinfo handle */
+		finfo_close($finfo);
+		
+		/* Return assembled link */
+		return '<a href="' . $link . '"><i class="' . $mime . '"></i> ' . htmlspecialchars($name) . $size . '</a>';	
+	}
+	
+	/* Execute a query for a file */
+	private function queryForFile($query, $file, $hash = false, $path = true) {
+		/* Resolve path */
+		if($path)
+			$file = truepath($file);
+		
+		/* Bind path */
+		$query->bindValue(':path', SQLite3::escapeString($file), SQLITE3_TEXT);
+		
+		/* Calculate and bind/save hash */
+		if($hash) {
+			$hash = hash($this->config['algorithm'], $file . microtime());
+			$query->bindValue(':hash', $hash, SQLITE3_TEXT);
+			$this->hash = $hash;
+		}
+		
+		/* Execute query */
+		return $query->execute();
+	}
+	
+	/* Set the header for the page */
+	private function setHead($page) {
+		/* Page style */
+		$page->addHead('<link rel="stylesheet" type="text/css" href="' . $this->requestRoot . 'style.css" />');
+	
+		/* Page header */
+		$page->addHeader('<a href="' . $this->requestRoot . '">' . htmlspecialchars($this->config['name']) . '</a>');
+	}
+}
+
+/**
+ * This function is to replace PHP's extremely buggy realpath().
+ * @param string The original path, can be relative etc.
+ * @return string The resolved path, it might not exist.
+ * @license http://creativecommons.org/licenses/by-sa/3.0/
+ * @author Christian (http://stackoverflow.com/a/4050444/1882566), patch by andig
+ */
+function truepath($path){
+	// whether $path is unix or not
+	$unipath=strlen($path)==0 || $path{0}!='/';
+	// attempts to detect if path is relative in which case, add cwd 
+	if(strpos($path,':')===false && $unipath) { 
+		$path=getcwd().DIRECTORY_SEPARATOR.$path;
+		$unipath=false;
+	}
+	// resolve path parts (single dot, double dot and double delimiters)
+	$path = str_replace(array('/', '\\'), DIRECTORY_SEPARATOR, $path);
+	$parts = array_filter(explode(DIRECTORY_SEPARATOR, $path), 'strlen');
+	$absolutes = array();
+	foreach ($parts as $part) {
+		if ('.'  == $part) continue;
+		if ('..' == $part) {
+			array_pop($absolutes);
+		} else {
+			$absolutes[] = $part;
+		}
+	}
+	$path=implode(DIRECTORY_SEPARATOR, $absolutes);
+	// resolve any symlinks
+	if(file_exists($path) && linkinfo($path)>0)$path=readlink($path);
+	// put initial separator that could have been lost
+	$path=!$unipath ? '/'.$path : $path;
+	return $path;
 }

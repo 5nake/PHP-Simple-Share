@@ -1,29 +1,34 @@
 PHP-Simple-Share
 ================
-Simple filesharing via unique links.
+This script allows you to share files on your webserver via unique urls. Files can be shared trough a command-line interface or a web-interface.
 
-![Shared folder][4]
-
-About
------
-This script allows you to share files on your webserver via unique urls. Files can be added through a command-line-interface, which creates a salted hash for each file. With this hash the file can be looked up and served.
+![Shared Folder][4]
 
 Usage
 -----
-Let's say I want to share a file named `/share/file.zip`.
-First I need to allow the sharing of files and folders in `/share`:
+Let's say I want to share a file named `/share/file.zip`. There are two ways to share this file:
 
-	php5 index.php addroot /share
+### Web Interface
 
-Now I can actually share the file:
+Login to the web interface, you'll see something like the following
+
+![Admin Interface][5]
+
+To add a file, simply enter the path to the file and click ‘share’.
+Paths can be relative and symbolic links will be resolved.
+
+If the file or appears in the list it has been added succesfully. The name also links to your shared file. To share, right-click and select ‘copy link’ or something to that effect.
+
+### Command Line Interface
+Run the following to share the file (where `index.php` is the path to your `index.php` file):
 
 	php5 index.php share /share/file.zip
-
+    
 This will output something like the following:
 
 	Link for : http://[your address here]/41e8148bd81618f6b63aa43bd6275e5dbab93825
 	
-The hash is a combination of the path to the file and a salt. This means files can be shared multiple times with different hashes.
+This link can be used to share your file, assuming the configured address is correct.
 
 To get help with the command-line-interface, enter:
 
@@ -37,24 +42,32 @@ This will output the following help:
 	    list              List shared files
 	    share [files]     Share file(s)
 	    del [hash(es)]    Stop sharing file(s) with hash(es)
-	    listroots         List allowed roots
-	    addroot [roots]   Add path(s) to allowed roots
-	    delroot [roots]   Remove path(s) from allowed roots
 
 Installation
 ------------
-All that is really needed is the `index.php` file. All requests should be routed to this script.
+All that is really needed is the `index.php` file, though for stylistic purposes `style.css` and `template.html` are also recommended.
+All requests should be routed to `index.php`, more about that in *Server Settings* below.
+
+It also requires the following server settings:
+
+ * PHP >= 5.3.7
+ * The PHP SQLite3 extension (enabled by default for PHP >= 5.3.0)
 
 Configuration
 -------------
 An example config file (`config.dist.ini`) has been provided. It has the following options:
 
- * `name`: the name you want for your share.
- * `algorithm`: the [hash algorithm][3] used.
- * `database`: the relative path to the sqlite database file.
- * `readfile`: use php instead of letting the webserver handle the file.
- * `disposition`: how files should shown. `inline` for display in the browser (if possible), `attachment` if the file should be downloaded.
- * `address`: the address to your share, eg: `http://share.example.com/share/`.
+ * `name`:          the name you want for your share.
+ * `algorithm`:     the [hash algorithm][3] used.
+ * `database`:      the relative path to the sqlite database file.
+ * `readfile`:      use php instead of letting the webserver handle the file.
+ * `disposition`:   how files should shown. `inline` for display in the browser (if possible), `attachment` if the file
+ * `address`:       the address to your share, eg: `http://share.example.com/share/`.
+ * `username`:      the username you want to use for the admin interface.
+ * `password`:      the password you want to use. The password can be entered in plain-text and will be hashed for you.
+ * `allowroots`:    the folders from which files can be shared, separated by a comma.
+ 
+Because the password will be hashed, PHP needs write permissions as well.
 
 Server Settings
 ---------------
@@ -121,3 +134,4 @@ If you don't use this feature, set `readfile` to `true` in the configuration.
 [2]: http://silex.sensiolabs.org/doc/web_servers.html
 [3]: http://php.net/manual/en/function.hash-algos.php
 [4]: https://dl.dropboxusercontent.com/u/6849076/Github/php-simple-share-1.png
+[5]: https://dl.dropboxusercontent.com/u/6849076/Github/php-simple-share-2.png
