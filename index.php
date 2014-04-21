@@ -279,11 +279,11 @@ class share {
 		$page->addBody('<form name="login" method="post" id="login">
 			<table>
 				<tr>
-					<td>Username:</td>
+					<td class="icon">&#xf007;</td>
 					<td><input type="text" name="username"/></td>
 				</tr>
 				<tr>
-					<td>Password:</td>
+					<td class="icon">&#xf023;</td>
 					<td><input type="password" name="password"/></td>
 				</tr>
 				<tr>
