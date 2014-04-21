@@ -608,14 +608,16 @@ class share {
  * @param string The original path, can be relative etc.
  * @return string The resolved path, it might not exist.
  * @license http://creativecommons.org/licenses/by-sa/3.0/
- * @author Christian (http://stackoverflow.com/a/4050444/1882566)
+ * @author Christian (http://stackoverflow.com/a/4050444/1882566), patch by andig
  */
 function truepath($path){
     // whether $path is unix or not
     $unipath=strlen($path)==0 || $path{0}!='/';
-    // attempts to detect if path is relative in which case, add cwd
-    if(strpos($path,':')===false && $unipath)
+    // attempts to detect if path is relative in which case, add cwd 
+    if(strpos($path,':')===false && $unipath) { 
         $path=getcwd().DIRECTORY_SEPARATOR.$path;
+        $unipath=false;
+    }
     // resolve path parts (single dot, double dot and double delimiters)
     $path = str_replace(array('/', '\\'), DIRECTORY_SEPARATOR, $path);
     $parts = array_filter(explode(DIRECTORY_SEPARATOR, $path), 'strlen');
