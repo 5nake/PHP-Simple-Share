@@ -37,11 +37,13 @@ To get help with the command-line-interface, enter:
 This will output the following help:
 
 	Usage:
-	  index.php [share|list|addroot|delroot] [path]
+	  index.php [share|list|del|listroots|thumbnails] [path]
 
-	    list              List shared files
-	    share [files]     Share file(s)
-	    del [hash(es)]    Stop sharing file(s) with hash(es)
+		list                    List shared files
+		share [files]           Share file(s)
+		del [hash(es)]          Stop sharing file(s) with hash(es)
+		listroots               Show the folders from which files can be shared
+		thumbnails [files]      Pre-generate thumbnails for file(s)
 
 Installation
 ------------
