@@ -332,12 +332,6 @@ class share {
 			case 'listroots':
 				$this->cliListRoots();
 				exit;
-			case 'addroot':
-				$this->cliAddRoot();
-				exit;
-			case 'delroot':
-				$this->cliDelRoot();
-				exit;
             case 'thumbnails':
 				$this->cliThumbnails();
 				exit;	
@@ -356,7 +350,18 @@ class share {
 			true
 		);
 	}
+	
+	/* List the roots set in the config */
+	private function cliListRoots() {
+		echo "The following roots are allowed by your configuration.\n".
+			"Roots can be added or removed in `" . __DIR__ . "/config.ini`.\n\n";
+		foreach($this->roots as $root) {
+			echo "  $root\n";
+		}
+	
+	}
     
+	/* Generates thumbnail cache for files */
     private function cliThumbnails() {
         global $argv;
         
@@ -433,10 +438,12 @@ class share {
 	private function cliHelp() {
 		exit(
 			"Usage:\n".
-			"  index.php [share|list|addroot|delroot] [path]\n\n".
-			"	list			  List shared files\n".
-			"	share [files]	 Share file(s)\n".
-			"	del [hash(es)]	Stop sharing file(s) with hash(es)\n"
+			"  index.php [share|list|del|listroots|thumbnails] [path]\n\n".
+			"    list                    List shared files\n".
+			"    share [files]           Share file(s)\n".
+			"    del [hash(es)]          Stop sharing file(s) with hash(es)\n".
+			"    listroots               Show the folders from which files can be shared\n".
+			"    thumbnails [files]      Pre-generate thumbnails for file(s)\n"
 		);
 	}
 	
