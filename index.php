@@ -5,7 +5,8 @@ $share = new share();
 /* Class which eases the rendering of simple html pages */
 class htmlPage {
 	private $body;
-	private $title;
+	private $class;
+    private $title;
 	private $head;
 	private $header;
 
@@ -28,17 +29,19 @@ class htmlPage {
 					'<!-- head -->',
 					'<!-- header -->',
 					'<!-- body -->',
+                    '<!-- class -->',
 				),
 				array(
 					$this->title,
 					$this->head,
 					$this->header,
 					$this->body,
+                    $this->class,
 				),
 				file_get_contents('template.html')
 			);
 		else
-			return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>$this->title</title>$this->head</head><body><h1>$this->header</h1>$this->body</body></html>";
+			return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>$this->title</title>$this->head</head><body class='$this->class'><h1>$this->header</h1>$this->body</body></html>";
 	}
 	
 	/* Add content to body */
@@ -46,6 +49,11 @@ class htmlPage {
 		$this->body .= $content;
 	}
 	
+    /* Set a class for the page */
+    public function addClass($class) {
+        $this->class .= $class . ' ';
+    }
+    
 	/* Add content to head */
 	public function addHead($content) {
 		$this->head .= $content;
@@ -130,7 +138,8 @@ class share {
 		/* Generate requested file from url */
 		
 		$docroot = explode('/', $_SERVER['DOCUMENT_ROOT']);
-		$request = explode('/', $_SERVER['REQUEST_URI']);
+		$request = explode('?', $_SERVER['REQUEST_URI'], 2)[0];
+        $request = explode('/', $request);
 		$curfile = explode('/', $_SERVER['SCRIPT_FILENAME']);
 		
 		/* Change the filename to a relative path */
@@ -328,7 +337,10 @@ class share {
 				exit;
 			case 'delroot':
 				$this->cliDelRoot();
-				exit;		
+				exit;
+            case 'thumbnails':
+				$this->cliThumbnails();
+				exit;	
 		}
 		
 		/* Ouput help if all else fails */
@@ -344,6 +356,36 @@ class share {
 			true
 		);
 	}
+    
+    private function cliThumbnails() {
+        global $argv;
+        
+        if(!isset($argv[2]))
+			$this->cliHelp();
+		else
+			unset($argv[1]);
+            
+        foreach($argv as $f) {
+        
+            /* Resolve path */
+            $f = truepath($f);
+            
+            /* Check if item is image */
+            $mime = $this->fileMime($f);
+            
+            /* Images get thumbnails */
+            if(explode('/',$mime)[0] == 'image') {
+                /* Create a thumbnail */
+                $this->thumbnail($f);
+                
+                /* Output */
+                echo "Thumbnail created for $f \n";
+            } else {
+                /* Output */
+                echo "Error: $f is not an image!\n";
+            }
+        }
+    }
 	
 	/* List shared files/folders */
 	private function cliList() {
@@ -415,6 +457,9 @@ class share {
 		/* List files for directories */
 		if(is_dir($this->request)) {
 			$files = array();
+            
+            /* Strip trailing slash and get from request */
+            $this->uri = rtrim(explode('?', $_SERVER['REQUEST_URI'], 2)[0], '/');
 			
 			/* Create page */
 			$page = new htmlPage(htmlspecialchars(basename($this->request) . ' – ' . $this->config['name']));
@@ -431,23 +476,29 @@ class share {
 			closedir($handle);
 			
 			/* Sort files alphabetically */
-			natsort($files);
-			
-			/* Show files */
-			foreach($files as $file) {
-				/* Strip trailing slash from request */
-				$uri = rtrim($_SERVER['REQUEST_URI'], '/');
-				
-				/* If it's a regular file, add a link to body */
-				if(substr($file,0,1) != '.' && !empty($file)) {
-					$page->addBody($this->linkPath($uri . '/' . rawurlencode($file), $this->request . '/' . $file, $file) . '<br/>');
-				} elseif($file == '..') {
-					if($uri != '/' . $this->hash)
-					$page->addBody('<a href="' . $uri . '/.."><i class="up"></i>..</a><br/>');
-				}
-				
-			}
-			
+            natsort($files);
+            
+            /* Detect if files should be shown in another way */
+            if(isset($_GET['view'])) {
+                $view = $_GET['view'];
+            } else {
+                $view = 'list';
+            }
+            
+            /* Give the page the class of the view so CSS can change */
+            $page->addClass('view-' . $view);
+            
+            /* Functions for views */
+            switch($view) {
+                case 'gallery':
+                    $this->shareViewGallery($files, $page);
+                    break;
+                case 'list':
+                default:
+                    $this->shareViewList($files, $page);
+                    break;
+            }
+ 			
 			/* Render page and exit */
 			$page->render();
 			exit;
@@ -472,6 +523,132 @@ class share {
 			exit;
 		}
 	}
+    
+    /* Will try to generate a thumbnail for a file */
+    private function thumbnail($file, $thumbnail = false, $size = 192) {
+        /* Generate the thumbnail location */
+        if(!$thumbnail)
+            $thumbnail = '/cache/' . md5($file) . '.jpg';
+    
+        /* If no thumbnail exists, generate one */
+        if(!file_exists(__DIR__ . $thumbnail)) {
+            
+            /* Check if the file is jpg to improve performance */
+            if(substr($file,-3,3) == 'jpg') {
+                $image = new Imagick();
+                $image->setOption('jpeg:size', '192x192');
+                $image->readImage($file);
+            } else {
+                $image = new Imagick($file);
+            }
+            
+            /* Get date of the taken photo */
+            $time = strtotime($image->getImageProperties('exif:DateTimeOriginal')['exif:DateTimeOriginal']);
+            
+            /* calculate best scaling */
+            $min = min($image->getImageWidth(), $image->getImageHeight());
+            $max = max($image->getImageWidth(), $image->getImageHeight());
+            $fit = ceil($max / $min * 192);
+            //echo $min . '/' . $max . '/' . $fit; die;
+            
+            /* Create thumbnail */
+            $image->thumbnailImage($fit, $fit, true);
+            $image->writeImage(__DIR__ . $thumbnail);
+            
+            /* Set acces/mod time */
+            touch(__DIR__ . $thumbnail, $time);
+        }
+    }
+    
+    private function shareViewGallery($files, $page) {
+        
+        /* Add mode button */
+        $page->addBody('<a href="' . $this->uri . '" class="viewbutton"><i class="icon list"></i></a>');
+        
+        /* Load Script */
+        $page->addBody('<script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+            <script src="/gallery.js"></script>');
+            
+        /* Load fotoviewer html */
+        $page->addBody('
+            <div id="photoviewer">
+                <div class="photoviewer-close icon"></div>
+                <div class="photoviewer-left icon"></div>
+                <img id="photoviewer-photo" src="" alt="image not found"/>
+                <div class="photoviewer-right icon"></div>
+                <div class="photoviewer-name"></div>
+                <img id="photoviewer-load" src="/loader.png" alt="Loading image"/>
+            </div>');
+        
+        /* Loop trough all files to be displayed */
+        foreach($files as $file) {
+            
+            /* If it's a regular file, add a link to body */
+            if(substr($file,0,1) != '.' && !empty($file)) {
+            
+                /* Check if item is image */
+                $mime = $this->fileMime($this->request . '/' . $file);
+                
+                /* Images get thumbnails */
+                if(explode('/',$mime)[0] == 'image') {
+                
+                    /* Generate the thumbnail location */
+                    $thumbnail = '/cache/' . md5($this->request . '/' . $file) . '.jpg';
+                
+                    /* Create a thumbnail */
+                    $this->thumbnail($this->request . '/' . $file, $thumbnail);
+                    
+                    /* Get date of the photo from the thumbnail */
+                    $name = date('Y-m-d H:i:s', filemtime(__DIR__ . $thumbnail));
+                    if(!$name)
+                        $name = $file;
+                
+                    /* Create the html for the image */
+                    $content = '<img src="' . $thumbnail . '" alt="' . $name . '" />';
+                
+                /* Other content gets a big icon */
+                } else {
+                    $content = '<span class="thumb ' . $mime . '"></span>';
+                }
+                
+                /* Add a link of the image to the body */
+                $page->addBody(
+                    '<span class="galleryitem">' . 
+                    $this->linkPath(
+                        $this->uri . '/' . rawurlencode($file) . '?gallery',
+                        $this->request . '/' . $file,
+                        null,
+                        $content 
+                    ) . '</span>'
+                );
+                
+            } elseif($file == '..') {
+                if($this->uri != '/' . $this->hash)
+                $page->addBody('<span class="galleryitem"><a href="' . $this->uri . '/..?gallery"><span class="thumb up"></span></a></span>');
+                
+            }
+        }
+    }
+    
+    /* Creates a nice list of files */
+    private function shareViewList($files, $page) {
+        
+        /* Add mode button */
+        $page->addBody('<a href="' . $this->uri . '?view=gallery" class="viewbutton"><i class="icon gallery"></i></a>');
+    
+        /* Show files */
+        foreach($files as $file) {
+            /* If it's a regular file, add a link to body */
+            if(substr($file,0,1) != '.' && !empty($file)) {
+                $page->addBody($this->linkPath($this->uri . '/' . rawurlencode($file), $this->request . '/' . $file, $file) . '<br/>');
+            
+            /* Only show the 'up' of the rest of the files */
+            } elseif($file == '..') {
+                if($this->uri != '/' . $this->hash)
+                $page->addBody('<a href="' . $this->uri . '/.."><i class="up"></i>..</a><br/>');
+            }
+        }
+    }
 	
 	/* Check if request is in allowed roots */
 	private function checkRequestPath() {
@@ -559,28 +736,41 @@ class share {
 		$this->config = parse_ini_file(__DIR__.'/config.ini');
 	}
 	
-	/* Generate a hyperlink for a path */
-	private function linkPath($link, $file, $name = false) {
-		/* Open a fileinfo handle and get the mime type */
-		$finfo = finfo_open(FILEINFO_MIME_TYPE);
+    /* Get mime type for a file */
+    private function fileMime($file) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
 		$mime = @finfo_file($finfo, $file);
-		
-		/* Check if a custom name was set, otherwise use filename */
-		if(!$name)
-			$name = $file;
-		
-		/* For files (not directories) calculate the filesize */
-		$size = "";
-		if($mime != 'directory') {
-			if($filesize = $this->fileSize($file))
-				$size = ' (' . $filesize . ')';
-		}
-		
-		/* Close fileinfo handle */
+        
+        /* Close fileinfo handle */
 		finfo_close($finfo);
+        
+        return $mime;
+    }
+    
+	/* Generate a hyperlink for a path */
+	private function linkPath($link, $file, $name = false, $content = null) {
+		/* Open a fileinfo handle and get the mime type */
+		$mime = $this->fileMime($file);
+		
+        /* Check if html content for the link is given, otherwise use filename and size */
+        if(!$content) {
+            /* Check if a custom name was set, otherwise use filename */
+            if(!$name)
+                $name = $file;
+		
+            /* For files (not directories) calculate the filesize */
+            $size = "";
+            if($mime != 'directory') {
+                if($filesize = $this->fileSize($file))
+                    $size = ' (' . $filesize . ')';
+            }
+            
+            /* Use filename and size safely */
+            $content = '<i class="' . $mime . '"></i> ' . htmlspecialchars($name) . $size;
+        }
 		
 		/* Return assembled link */
-		return '<a href="' . $link . '"><i class="' . $mime . '"></i> ' . htmlspecialchars($name) . $size . '</a>';	
+		return '<a href="' . $link . '">' . $content . '</a>';	
 	}
 	
 	/* Execute a query for a file */

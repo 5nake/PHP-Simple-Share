@@ -83,6 +83,25 @@ section {
     box-shadow: 0em .5em 2em rgba(15,15,15,0.5);
 }
 
+section.view-gallery {
+    min-width: 15em;
+    max-width: 78em;
+}
+
+section.view-gallery article {
+    text-align: center;
+}
+
+section.view-gallery article h1 {
+    width: 100%;
+    text-align: left;
+}
+
+section.view-gallery ~ footer {
+    min-width: 18.75em;
+    max-width: 97.5em;
+}
+
 footer {
     position: relative;
     width: 100%;
@@ -107,6 +126,134 @@ article a {
     line-height: 1.7em;
     padding: .2em .5em .2em 0;
     font-weight: 400;
+}
+
+#photoviewer {
+    display: none;
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 2;
+    background-color: rgb(15,15,15);
+}
+
+#photoviewer img {
+    max-height: 80%;
+    max-width: 80%;
+    margin: auto;
+    position: absolute;
+    top: -9999px; bottom: -9999px; left: -9999px; right: -9999px;    
+}
+
+#photoviewer .icon {
+    padding: 0;
+    margin: 0;
+    color: white;
+    font-size: 2em;
+    cursor: pointer;
+    cursor: hand;
+}
+
+#photoviewer .photoviewer-close {
+    text-align: right;
+    width: 100%;
+    height: 10%;
+    margin: 0em;
+}
+
+#photoviewer-load {
+    display:block;
+}
+
+#photoviewer .photoviewer-left, #photoviewer .photoviewer-right {
+    z-index: 5;
+    font-size: 5em;
+    position: absolute;
+    top: 10%;
+    width: 10%;
+    height: 80%;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    alight-content: center;
+    flex-direction: column;
+}
+
+#photoviewer .photoviewer-left {
+    left: 0;
+}
+
+#photoviewer .photoviewer-right {
+    right: 0;
+}
+
+#photoviewer .photoviewer-name {
+    width: 100%;
+    height: 10%;
+    text-align: center;
+    color: white;
+    position: absolute;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    alight-content: center;
+    flex-direction: column;
+}
+
+article a.viewbutton {
+    font-size: 1.2em;
+    float: right;
+    padding: 0;
+    margin: -2.75em 0 0 0;
+}
+
+article .galleryitem {
+    display: inline-block;
+    background: rgb(210,210,210);
+    
+    border: .1em solid rgb(165,165,165);
+    border-radius: .2em;
+    
+    overflow: hidden;
+    
+    height: 12em;
+    width: 12em;
+    padding: 0;
+    margin: .12em .27em;
+    text-align: center;
+}
+
+article .galleryitem:hover {
+    border-color: rgb(45,45,45);
+    box-shadow: 0 0 .5em rgb(45,45,45);
+}
+
+article .galleryitem a, article .galleryitem a:hover {
+    color: rgb(15,15,15);
+    margin: 0;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    border: none;
+}
+
+article .galleryitem img {
+    /*vertical-align: middle;*/
+    min-height: 12em;
+    min-width: 12em;
+}
+
+article .galleryitem .thumb {
+    font-family: FontAwesome;
+    font-size: 12em;
+    font-style: normal;
+    font-weight: normal;
+    line-height: 1;
+    
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 article a:hover {
@@ -217,6 +364,11 @@ i:before { content: "\f15b"; }
 .up:before                      { content: "\f148"; } /* fa-level-up */
 .directory:before               { content: "\f07b"; } /* fa-folder */
 .directory.open:before          { content: "\f07c"; } /* fa-folder-open */
+.list:before                        { content: "\f03a"; } /* fa-list */
+.gallery:before                     { content: "\f03e"; } /* fa-picture-o */
+.photoviewer-left:before        { content: "\f104"; } /* fa-angle-left */
+.photoviewer-right:before       { content: "\f105"; } /* fa-angle-right */
+.photoviewer-close:before       { content: "\f00d"; } /* fa-times */
 
 /* Source code */
 .text\/x-script.phyton:before,
